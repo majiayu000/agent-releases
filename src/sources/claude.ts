@@ -10,6 +10,9 @@ type GhRelease = {
   prerelease?: boolean;
 };
 
+const PER_PAGE = 30;
+const MAX_PAGES = 10;
+
 function ghHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
@@ -47,54 +50,99 @@ export async function fetchLatestClaude(): Promise<Release | null> {
 }
 
 /**
+ * Paginate GitHub releases until we pass last_seen or hit MAX_PAGES.
+ * Returns newest-first raw stables; caller sorts oldest-first for walks.
+ */
+async function fetchClaudeReleasePages(
+  afterVersion: string | null,
+): Promise<GhRelease[]> {
+  const headers = ghHeaders();
+  const all: GhRelease[] = [];
+  let foundLastSeen = afterVersion === null;
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const res = await fetch(
+      `https://api.github.com/repos/anthropics/claude-code/releases?per_page=${PER_PAGE}&page=${page}`,
+      { headers },
+    );
+    if (!res.ok) {
+      if (page === 1) {
+        throw new Error(`Claude API HTTP ${res.status} page=${page}`);
+      }
+      console.warn(`[claude] API ${res.status} on page=${page}; using ${all.length} releases so far`);
+      break;
+    }
+    const list = (await res.json()) as GhRelease[];
+    if (list.length === 0) break;
+
+    all.push(...list);
+
+    if (afterVersion !== null) {
+      for (const rel of list) {
+        const tag = rel.tag_name.replace(/^v/, "");
+        if (compareVersionIds(tag, afterVersion) <= 0) {
+          foundLastSeen = true;
+          break;
+        }
+      }
+      if (foundLastSeen) break;
+    } else {
+      // Seed only needs page 1 tip
+      break;
+    }
+
+    if (list.length < PER_PAGE) break;
+  }
+
+  if (afterVersion !== null && !foundLastSeen) {
+    console.warn(
+      `[claude] hit page cap (${MAX_PAGES}) without finding last_seen ${afterVersion}`,
+    );
+  }
+
+  return all;
+}
+
+/**
  * Releases newer than `afterVersion` (exclusive), oldest-first.
  * Pass `null` to get only the tip (for seeding).
  */
 export async function fetchClaudeSince(afterVersion: string | null): Promise<Release[]> {
-  const headers = ghHeaders();
   try {
-    const res = await fetch(
-      "https://api.github.com/repos/anthropics/claude-code/releases?per_page=30",
-      { headers },
-    );
-    if (res.ok) {
-      const list = (await res.json()) as GhRelease[];
-      const stables = list.filter((r) => !r.draft && !r.prerelease);
-      if (stables.length === 0 && list[0]) stables.push(list[0]);
+    const list = await fetchClaudeReleasePages(afterVersion);
+    const stables = list.filter((r) => !r.draft && !r.prerelease);
+    if (stables.length === 0 && list[0]) stables.push(list[0]);
 
-      let needChangelog = false;
-      const mapped: { rel: GhRelease; tag: string }[] = [];
-      for (const rel of stables) {
-        const tag = rel.tag_name.replace(/^v/, "");
-        if (afterVersion !== null && compareVersionIds(tag, afterVersion) <= 0) continue;
-        mapped.push({ rel, tag });
-        if ((rel.body?.trim().length ?? 0) < 40) needChangelog = true;
-      }
-
-      // Tip-only when seeding
-      if (afterVersion === null) {
-        const tip = stables[0];
-        if (!tip) return [];
-        const md = (tip.body?.trim().length ?? 0) < 40 ? await fetchChangelogMd() : null;
-        return [await toRelease(tip, md)];
-      }
-
-      // API is newest-first; we want oldest-first
-      mapped.sort((a, b) => compareVersionIds(a.tag, b.tag));
-
-      const md = needChangelog ? await fetchChangelogMd() : null;
-      const out: Release[] = [];
-      for (const { rel } of mapped) {
-        out.push(await toRelease(rel, md));
-      }
-      return out;
+    let needChangelog = false;
+    const mapped: { rel: GhRelease; tag: string }[] = [];
+    for (const rel of stables) {
+      const tag = rel.tag_name.replace(/^v/, "");
+      if (afterVersion !== null && compareVersionIds(tag, afterVersion) <= 0) continue;
+      mapped.push({ rel, tag });
+      if ((rel.body?.trim().length ?? 0) < 40) needChangelog = true;
     }
-    console.warn(`[claude] API ${res.status}, falling back to CHANGELOG.md`);
-  } catch (e) {
-    console.warn("[claude] API error, fallback", e);
-  }
 
-  return fetchClaudeSinceFromChangelog(afterVersion);
+    // Tip-only when seeding
+    if (afterVersion === null) {
+      const tip = stables[0];
+      if (!tip) return [];
+      const md = (tip.body?.trim().length ?? 0) < 40 ? await fetchChangelogMd() : null;
+      return [await toRelease(tip, md)];
+    }
+
+    // API is newest-first; we want oldest-first
+    mapped.sort((a, b) => compareVersionIds(a.tag, b.tag));
+
+    const md = needChangelog ? await fetchChangelogMd() : null;
+    const out: Release[] = [];
+    for (const { rel } of mapped) {
+      out.push(await toRelease(rel, md));
+    }
+    return out;
+  } catch (e) {
+    console.warn("[claude] API error, fallback to CHANGELOG.md", e);
+    return fetchClaudeSinceFromChangelog(afterVersion);
+  }
 }
 
 async function fetchClaudeSinceFromChangelog(
@@ -102,11 +150,11 @@ async function fetchClaudeSinceFromChangelog(
 ): Promise<Release[]> {
   const md = await fetchChangelogMd();
   if (!md) return [];
-  const tags = [...md.matchAll(/^##\s+(\d+\.\d+\.\d+)\s*$/gm)].map((m) => m[1]);
+  const tags = [...md.matchAll(/^##\s+(\d+\.\d+\.\d+)\s*$/gm)].map((m) => m[1]!);
   if (tags.length === 0) return [];
 
   if (afterVersion === null) {
-    const tag = tags[0];
+    const tag = tags[0]!;
     return [
       {
         product: "claude",

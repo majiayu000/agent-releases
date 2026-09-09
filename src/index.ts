@@ -3,6 +3,7 @@ import { fetchLatestCodex, fetchCodexSince } from "./sources/codex.ts";
 import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.ts";
 import type { Product, Release } from "./sources/types.ts";
 import { readState, writeState, listChangedStateFiles } from "./state.ts";
+import { appendLedger, hasPostedLive } from "./ledger.ts";
 import { isNotable } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
 import { openDraftIssue } from "./github-issue.ts";
@@ -47,22 +48,44 @@ async function handleOne(product: Product, release: Release): Promise<boolean> {
     console.log(`[skip] ${product} ${release.version} already seen`);
     return false;
   }
+
+  // Duplicate protection: already live-posted per ledger → advance state, no re-post
+  if (!DRY_RUN && hasPostedLive(product, release.version)) {
+    writeState(product, release.version);
+    console.log(
+      `[ledger-skip] ${product} ${release.version} already in ledger with tweetId; advanced state`,
+    );
+    return true;
+  }
+
   if (!isNotable(release.notes)) {
     writeState(product, release.version);
     console.log(`[skip-fixed] ${product} ${release.version} not notable; advanced state`);
     return true;
   }
 
+  // Order: draft → post/issue → append ledger → writeState
   const text = await draftChinesePost(release);
   console.log(`\n=== draft ${product} ${release.version} ===\n${text}\n`);
 
+  let tweetId: string | undefined;
+  let issueUrl: string | undefined;
   if (DRY_RUN) {
-    const url = await openDraftIssue(release, text);
-    console.log(`[dry-run] issue: ${url}`);
+    issueUrl = await openDraftIssue(release, text);
+    console.log(`[dry-run] issue: ${issueUrl}`);
   } else {
-    const id = await postTweet(text);
-    console.log(`[posted] tweet id ${id}`);
+    tweetId = await postTweet(text);
+    console.log(`[posted] tweet id ${tweetId}`);
   }
+
+  appendLedger({
+    ts: new Date().toISOString(),
+    product,
+    version: release.version,
+    tweetId,
+    issueUrl,
+    dryRun: DRY_RUN,
+  });
   writeState(product, release.version);
   return true;
 }
@@ -85,7 +108,7 @@ async function processProduct(
   }
 
   const range = await fetchSince(prev);
-  const tipVer = range.length > 0 ? range[range.length - 1].version : prev;
+  const tipVer = range.length > 0 ? range[range.length - 1]!.version : prev;
   console.log(`[walk] ${product} ${prev}..${tipVer} (${range.length})`);
 
   let changed = false;
@@ -99,21 +122,30 @@ async function processProduct(
 async function main() {
   console.log(`agent-releases start DRY_RUN=${DRY_RUN}`);
   let changed = false;
+  let failed = false;
+
   for (const { product, fetchLatest, fetchSince } of FETCHERS) {
     try {
       const did = await processProduct(product, fetchLatest, fetchSince);
       changed = changed || did;
     } catch (e) {
       console.error(`[error] ${product}`, e);
+      failed = true;
     }
   }
-  // Hint for workflow commit step
+
+  // Hint for workflow commit step (successful products may have written state)
   writeFileSync(
     "/tmp/agent-releases-changed.txt",
     changed ? "1" : "0",
     "utf8",
   );
   console.log("state files:", listChangedStateFiles().join(", "));
+
+  if (failed) {
+    console.error("[fail-loud] one or more products failed; exiting 1");
+    process.exit(1);
+  }
 }
 
 main().catch((e) => {

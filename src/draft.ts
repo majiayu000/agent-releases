@@ -2,6 +2,7 @@ import type { Release } from "./sources/types.ts";
 import { PRODUCT_NAME, PRODUCT_TAG } from "./sources/types.ts";
 import { pickBullets } from "./filter.ts";
 import { isLlmDraftConfigured, draftChinesePostWithLlm } from "./draft-llm.ts";
+import { trimPostToWeightedLimit, weightedXLength, X_WEIGHTED_LIMIT } from "./x-length.ts";
 
 /** Leading changelog verbs → Chinese. */
 const LEADING_VERBS: [RegExp, string][] = [
@@ -288,25 +289,8 @@ export function draftChinesePostRuleBased(release: Release): string {
     bullets = ["详见发版说明（非官方整理）"];
   }
 
-  let post = `${header}\n\n${bullets.map((b) => `• ${b}`).join("\n")}\n\n${release.url}`;
-
-  // Soft trim toward X length (~280–400 ok)
-  if (post.length > 400) {
-    bullets = bullets.map((b) => (b.length > 70 ? b.slice(0, 67) + "…" : b));
-    while (bullets.length > 1) {
-      const candidate = `${header}\n\n${bullets.map((b) => `• ${b}`).join("\n")}\n\n${release.url}`;
-      if (candidate.length <= 400) {
-        post = candidate;
-        break;
-      }
-      bullets = bullets.slice(0, -1);
-      post = candidate;
-    }
-    if (post.length > 400) {
-      post = `${header}\n\n${bullets.map((b) => `• ${b}`).join("\n")}\n\n${release.url}`;
-    }
-  }
-  return post;
+  const post = `${header}\n\n${bullets.map((b) => `• ${b}`).join("\n")}\n\n${release.url}`;
+  return trimPostToWeightedLimit(post, X_WEIGHTED_LIMIT);
 }
 
 
@@ -340,7 +324,13 @@ export async function draftChinesePost(release: Release): Promise<string> {
       console.warn(`[draft-llm] fallback: ${reason}`);
       return draftChinesePostRuleBased(release);
     }
-    return llm;
+    const trimmed = trimPostToWeightedLimit(llm, X_WEIGHTED_LIMIT);
+    if (trimmed !== llm) {
+      console.log(
+        `[draft-llm] trimmed weighted length ${weightedXLength(llm)} -> ${weightedXLength(trimmed)}`,
+      );
+    }
+    return trimmed;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn(`[draft-llm] fallback: ${msg}`);

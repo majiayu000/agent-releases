@@ -6,15 +6,16 @@ Unofficial Chinese release drafts for [@agentreleases](https://x.com/agentreleas
 
 ## What it does
 
-Hourly GitHub Action:
+Hourly GitHub Action (`DRY_RUN=false` by default on schedule):
 
-1. Poll Claude Code GitHub Releases (+ CHANGELOG fallback)
-2. Poll OpenAI Codex GitHub Releases (`rust-v*` preferred)
-3. Parse [Grok Build changelog](https://x.ai/build/changelog)
+1. Poll Claude Code GitHub Releases (paginated) + CHANGELOG fallback
+2. Poll OpenAI Codex GitHub Releases (`rust-v*`, paginated; HTML tip only for seed)
+3. Parse [Grok Build changelog](https://x.ai/build/changelog) (multi-version, oldest-first)
 4. Skip Fixed-only versions
-5. Draft a short Chinese post with tags `【Claude】` / `【Codex】` / `【Grok Build】`
-6. **Default `DRY_RUN=true`**: open a GitHub Issue with the draft (does **not** post to X)
-7. When `DRY_RUN=false` + X secrets: post via OAuth 1.0a
+5. Draft a short Chinese post (`【Claude】` / `【Codex】` / `【Grok Build】`) via **GLM-5.3-Flash** (BigModel Anthropic gateway) with rule-based fallback
+6. Post to X when `DRY_RUN=false` + X secrets; otherwise open a GitHub Issue
+7. Append `.state/posted.jsonl` ledger, then advance `.state/last_posted_*.txt`
+8. Commit all of `.state/` (including ledger). Fail-loud: any product error → exit 1
 
 First run **seeds** `.state/*` without posting.
 
@@ -22,27 +23,31 @@ First run **seeds** `.state/*` without posting.
 
 ## Secrets (repo Settings → Secrets)
 
-Only needed for live posting:
+Live posting:
 
-- `X_API_KEY`
-- `X_API_SECRET`
-- `X_ACCESS_TOKEN`
-- `X_ACCESS_TOKEN_SECRET`
+- `X_API_KEY` / `X_API_SECRET` / `X_ACCESS_TOKEN` / `X_ACCESS_TOKEN_SECRET`
+
+LLM drafting (optional but recommended):
+
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_BASE_URL` (default `https://open.bigmodel.cn/api/anthropic`)
+- `DRAFT_MODEL` (default / recommended: `glm-5.3-flash`)
 
 ## Local
 
 ```bash
 bun install
+bun run selfcheck:draft
 DRY_RUN=true bun run start
 ```
 
-## Enable X posting
+## Enable / disable X posting
 
-1. Put the four X secrets above
-2. Actions → **agent-releases hourly** → Run workflow → set dry_run to `false`
+- **Schedule**: always `DRY_RUN=false` (live).
+- **Manual**: Actions → **agent-releases hourly** → Run workflow → `dry_run` true|false.
 
-Or change the workflow default later (keep DRY_RUN true for the first week).
+## State & ledger
 
-## Manual first tweets
-
-Use Issues created by DRY_RUN, or paste drafts from local runs.
+- `.state/last_posted_*.txt` — last processed version per product
+- `.state/posted.jsonl` — append-only `{ts, product, version, tweetId|issueUrl, dryRun}`; skips re-post if a live tweetId already exists for that product+version
+- Commit step must keep `.state/` in git (rebase-retry on push race)

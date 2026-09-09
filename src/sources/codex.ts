@@ -10,6 +10,9 @@ type GhRelease = {
   prerelease?: boolean;
 };
 
+const PER_PAGE = 30;
+const MAX_PAGES = 10;
+
 function ghHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
@@ -46,23 +49,66 @@ export async function fetchLatestCodex(): Promise<Release | null> {
 /**
  * rust-v* releases newer than `afterVersion` (exclusive), oldest-first.
  * Pass `null` to get only the tip (for seeding).
+ *
+ * HTML tip-only fallback is allowed for seed (afterVersion === null) only.
+ * If API fails and last_seen is set with a newer tip, fail the product
+ * rather than silently skip middle versions.
  */
 export async function fetchCodexSince(afterVersion: string | null): Promise<Release[]> {
   const headers = ghHeaders();
-  const res = await fetch(
-    "https://api.github.com/repos/openai/codex/releases?per_page=30",
-    { headers },
-  );
-  if (res.ok) {
-    const list = (await res.json()) as GhRelease[];
-    const rust = list.filter((r) => !r.draft && !r.prerelease && isRustTag(r.tag_name));
+  const all: GhRelease[] = [];
+  let foundLastSeen = afterVersion === null;
+  let apiOk = false;
+  let lastStatus = 0;
+
+  try {
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const res = await fetch(
+        `https://api.github.com/repos/openai/codex/releases?per_page=${PER_PAGE}&page=${page}`,
+        { headers },
+      );
+      lastStatus = res.status;
+      if (!res.ok) {
+        apiOk = false;
+        break;
+      }
+      apiOk = true;
+      const list = (await res.json()) as GhRelease[];
+      if (list.length === 0) break;
+      all.push(...list);
+
+      if (afterVersion !== null) {
+        for (const rel of list) {
+          if (compareVersionIds(rel.tag_name, afterVersion) <= 0) {
+            foundLastSeen = true;
+            break;
+          }
+        }
+        if (foundLastSeen) break;
+      } else {
+        break; // seed: tip from page 1
+      }
+
+      if (list.length < PER_PAGE) break;
+    }
+  } catch (e) {
+    console.warn("[codex] API error", e);
+    apiOk = false;
+  }
+
+  if (apiOk) {
+    if (afterVersion !== null && !foundLastSeen) {
+      console.warn(
+        `[codex] hit page cap (${MAX_PAGES}) without finding last_seen ${afterVersion}`,
+      );
+    }
+
+    const rust = all.filter((r) => !r.draft && !r.prerelease && isRustTag(r.tag_name));
     const pool =
-      rust.length > 0
-        ? rust
-        : list.filter((r) => !r.draft && !r.prerelease);
+      rust.length > 0 ? rust : all.filter((r) => !r.draft && !r.prerelease);
 
     if (afterVersion === null) {
-      const tip = pool[0] || list[0];
+      const tip = pool[0] || all[0];
       return tip ? [toRelease(tip)] : [];
     }
 
@@ -72,12 +118,27 @@ export async function fetchCodexSince(afterVersion: string | null): Promise<Rele
     return newer.map(toRelease);
   }
 
-  console.warn(`[codex] API ${res.status}, falling back to releases HTML (tip-only)`);
+  console.warn(`[codex] API ${lastStatus || "error"}, considering HTML tip fallback`);
   const tip = await fetchCodexTipFromHtml();
-  if (!tip) return [];
+  if (!tip) {
+    throw new Error(`[codex] API ${lastStatus || "error"} and HTML tip unparseable`);
+  }
+
+  // Seed only: tip-only is OK
   if (afterVersion === null) return [tip];
-  if (compareVersionIds(tip.version, afterVersion) > 0) return [tip];
-  return [];
+
+  if (
+    tip.version === afterVersion ||
+    compareVersionIds(tip.version, afterVersion) <= 0
+  ) {
+    console.log(`[codex] HTML tip ${tip.version} <= last_seen ${afterVersion}; skip`);
+    return [];
+  }
+
+  throw new Error(
+    `[codex] API failed (${lastStatus || "error"}); HTML tip-only would skip middle versions ` +
+      `(last_seen=${afterVersion}, tip=${tip.version}). Failing product rather than advancing past gap.`,
+  );
 }
 
 async function fetchCodexTipFromHtml(): Promise<Release | null> {

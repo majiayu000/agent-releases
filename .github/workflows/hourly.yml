@@ -35,6 +35,9 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile || bun install
 
+      - name: Selfcheck
+        run: bun run selfcheck:draft
+
       - name: Generate drafts / post
         env:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run || 'false' }}
@@ -53,10 +56,24 @@ jobs:
         run: |
           git config user.name "agent-releases-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Must include .state/ (last_posted_*.txt + posted.jsonl ledger)
           git add .state || true
           if git diff --staged --quiet; then
             echo "No state changes"
           else
             git commit -m "chore: advance release state"
-            git push
+            # Rebase retry if another run pushed state concurrently
+            pushed=0
+            for i in 1 2; do
+              if git push; then
+                pushed=1
+                break
+              fi
+              echo "push failed, fetch + rebase retry #$i"
+              git fetch origin main
+              git rebase origin/main
+            done
+            if [ "$pushed" -ne 1 ]; then
+              git push
+            fi
           fi

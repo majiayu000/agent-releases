@@ -7,15 +7,16 @@ import { PRODUCT_NAME, PRODUCT_TAG } from "./sources/types.ts";
 import { pickBullets } from "./filter.ts";
 
 const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/anthropic";
-const DEFAULT_MODEL = "glm-4.5-flash";
-const TIMEOUT_MS = 20_000;
+/** Default BigModel draft model (override with DRAFT_MODEL). */
+export const DEFAULT_MODEL = "glm-5.3-flash";
+const TIMEOUT_MS = Number(process.env.DRAFT_TIMEOUT_MS) || 60_000;
 
 export function isLlmDraftConfigured(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
 }
 
 export function draftModelId(): string {
-  return (process.env.DRAFT_MODEL?.trim() || DEFAULT_MODEL);
+  return process.env.DRAFT_MODEL?.trim() || DEFAULT_MODEL;
 }
 
 function baseUrl(): string {
@@ -44,7 +45,7 @@ ${header}
 5. 最后一行单独放发布链接（不要加任何前后缀）：
 ${release.url}
 6. 全文不要残留英文句子；专有名词与反引号内代码可保留英文。
-7. 全文软上限约 400 字（含标点与链接）。
+7. 全文按 X 加权长度约 280（中文/非 ASCII≈2，链接≈23）；尽量短。
 
 只输出帖文正文，不要解释、不要 markdown 代码块。
 
@@ -77,7 +78,7 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
 
   const model = draftModelId();
   const url = `${baseUrl()}/v1/messages`;
-  console.log(`[draft-llm] model=${model} url=${url}`);
+  console.log(`[draft-llm] model=${model} timeoutMs=${TIMEOUT_MS} url=${url}`);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

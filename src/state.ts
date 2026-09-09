@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 import type { Product } from "./sources/types.ts";
 import { STATE_FILE } from "./sources/types.ts";
+import { LEDGER_PATH } from "./ledger.ts";
 
 export function readState(product: Product): string | null {
   const path = STATE_FILE[product];
@@ -17,5 +18,5 @@ export function writeState(product: Product, version: string): void {
 }
 
 export function listChangedStateFiles(): string[] {
-  return Object.values(STATE_FILE);
+  return [...Object.values(STATE_FILE), LEDGER_PATH];
 }

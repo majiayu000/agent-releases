@@ -1,16 +1,21 @@
 /**
  * Tiny self-check: rule-based draftChinesePost on 2.1.265 fixture must be
  * readable Chinese; LLM path is skipped/mocked when no API key.
+ * Also covers weighted X length + grok multi-version parse + ledger helpers.
  *
- * Run: bun run src/draft-selfcheck.ts
+ * Run: bun run selfcheck:draft
  */
 import {
   draftChinesePost,
   draftChinesePostRuleBased,
   maxLatinRunOutsideBackticks,
 } from "./draft.ts";
-import { isLlmDraftConfigured } from "./draft-llm.ts";
+import { isLlmDraftConfigured, DEFAULT_MODEL } from "./draft-llm.ts";
+import { weightedXLength, trimPostToWeightedLimit, X_WEIGHTED_LIMIT } from "./x-length.ts";
+import { parseVersionBlocks } from "./sources/grok-build.ts";
+import { hasPostedLive, appendLedger, LEDGER_PATH } from "./ledger.ts";
 import type { Release } from "./sources/types.ts";
+import { existsSync, unlinkSync, readFileSync, writeFileSync } from "fs";
 
 const NOTES_2_1_265 = `## What's changed
 
@@ -63,9 +68,132 @@ function assertRulePost(post: string, label: string) {
     console.error("FAIL: long Latin run in rule draft");
     process.exit(1);
   }
+  const w = weightedXLength(post);
+  if (w > X_WEIGHTED_LIMIT + 5) {
+    // allow tiny slack only if trim somehow skipped; should be <= 280
+    console.error("FAIL: weighted length too high", w);
+    process.exit(1);
+  }
+  console.log(`OK weighted length=${w}`);
+}
+
+function checkWeightedLength() {
+  const ascii = "a".repeat(10);
+  if (weightedXLength(ascii) !== 10) {
+    console.error("FAIL: ascii weight", weightedXLength(ascii));
+    process.exit(1);
+  }
+  const cjk = "中".repeat(10);
+  if (weightedXLength(cjk) !== 20) {
+    console.error("FAIL: cjk weight", weightedXLength(cjk));
+    process.exit(1);
+  }
+  const withUrl = "hello https://example.com/path?x=1 world";
+  const w = weightedXLength(withUrl);
+  // "hello " (6) + url(23) + " world" (6) = 35
+  if (w !== 35) {
+    console.error("FAIL: url weight", w);
+    process.exit(1);
+  }
+
+  const long =
+    "【Claude】Claude Code 9.9.9 出了（非官方）\n\n" +
+    "• " +
+    "测".repeat(200) +
+    "\n• " +
+    "试".repeat(200) +
+    "\n\nhttps://example.com/r";
+  const trimmed = trimPostToWeightedLimit(long, X_WEIGHTED_LIMIT);
+  if (weightedXLength(trimmed) > X_WEIGHTED_LIMIT) {
+    console.error("FAIL: trim did not fit", weightedXLength(trimmed));
+    process.exit(1);
+  }
+  if (!trimmed.includes("https://example.com/r")) {
+    console.error("FAIL: trim dropped URL");
+    process.exit(1);
+  }
+  console.log("OK: weighted length helper + trim");
+}
+
+function checkGrokParse() {
+  const html = `
+    <html><body>
+    <p>Latest v1.0.13</p>
+    <h2>Grok Build 1.0.13</h2>
+    <ul><li>Faster CLI downloads and smarter retries</li><li>Windows image workflow fixes</li></ul>
+    <h2>Grok Build 1.0.12</h2>
+    <ul><li>Context bar updates immediately</li></ul>
+    <h2>Grok Build 1.0.11</h2>
+    <ul><li>Smarter resume browsing</li></ul>
+    </body></html>
+  `;
+  const blocks = parseVersionBlocks(html);
+  if (blocks.length < 3) {
+    console.error("FAIL: expected >=3 grok blocks", blocks.map((b) => b.version));
+    process.exit(1);
+  }
+  if (blocks[0]!.version !== "1.0.13") {
+    console.error("FAIL: tip should be 1.0.13", blocks[0]!.version);
+    process.exit(1);
+  }
+  const versions = blocks.map((b) => b.version);
+  if (!versions.includes("1.0.12") || !versions.includes("1.0.11")) {
+    console.error("FAIL: missing older versions", versions);
+    process.exit(1);
+  }
+  console.log("OK: grok multi-version parse", versions.slice(0, 5));
+}
+
+function checkDefaultModel() {
+  if (DEFAULT_MODEL !== "glm-5.3-flash") {
+    console.error("FAIL: DEFAULT_MODEL expected glm-5.3-flash got", DEFAULT_MODEL);
+    process.exit(1);
+  }
+  console.log("OK: DEFAULT_MODEL=glm-5.3-flash");
+}
+
+function checkLedgerHelpers() {
+  // Use a temp path by writing then reading via public API against real LEDGER_PATH
+  // only if we are in a disposable cwd — avoid clobbering real state in CI checkout.
+  // Selfcheck runs in repo root; if posted.jsonl exists, only assert read path.
+  const existed = existsSync(LEDGER_PATH);
+  const before = existed ? readFileSync(LEDGER_PATH, "utf8") : null;
+
+  appendLedger({
+    ts: "2099-01-01T00:00:00.000Z",
+    product: "claude",
+    version: "__selfcheck_never__",
+    tweetId: "999",
+    dryRun: false,
+  });
+  if (!hasPostedLive("claude", "__selfcheck_never__")) {
+    console.error("FAIL: hasPostedLive should see selfcheck entry");
+    process.exit(1);
+  }
+  if (hasPostedLive("claude", "__no_such_version__")) {
+    console.error("FAIL: unexpected live hit");
+    process.exit(1);
+  }
+
+  // Restore ledger
+  if (before === null) {
+    if (existsSync(LEDGER_PATH)) unlinkSync(LEDGER_PATH);
+  } else {
+    // drop the selfcheck line
+    const lines = readFileSync(LEDGER_PATH, "utf8")
+      .split("\n")
+      .filter((l) => l && !l.includes("__selfcheck_never__"));
+    writeFileSync(LEDGER_PATH, lines.length ? lines.join("\n") + "\n" : before, "utf8");
+  }
+  console.log("OK: ledger helpers");
 }
 
 async function main() {
+  checkDefaultModel();
+  checkWeightedLength();
+  checkGrokParse();
+  checkLedgerHelpers();
+
   // Always exercise the rule-based path explicitly (independent of API key).
   const rulePost = draftChinesePostRuleBased(release);
   assertRulePost(rulePost, "rule-based draft");

@@ -66,6 +66,8 @@ Not affiliated with Anthropic / OpenAI / xAI
 
 ## 管道备忘
 - Secrets：`X_API_KEY` / `X_API_SECRET` / `X_ACCESS_TOKEN` / `X_ACCESS_TOKEN_SECRET`
+- 草稿模型：`DRAFT_MODEL=glm-5.3-flash`（BigModel Anthropic 网关）；超时默认 60s
+- 状态：`.state/last_posted_*.txt` + 追加式 `.state/posted.jsonl`（防重复发帖）；commit 必须带上 `.state/`
 - 手动只开 Issue：Actions → hourly → `dry_run=true`
 - 删帖：workflow `delete X post` + tweet id
 - 源：Claude GitHub/CHANGELOG；Codex rust releases；Grok Build changelog；Grok Bot 未接
