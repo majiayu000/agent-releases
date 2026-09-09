@@ -1,7 +1,37 @@
 import type { Release } from "./types.ts";
+import { compareVersionIds } from "../versions.ts";
 
 /** Parse https://x.ai/build/changelog for the newest version block. */
 export async function fetchLatestGrokBuild(): Promise<Release | null> {
+  const list = await fetchGrokBuildSince(null);
+  return list[0] ?? null;
+}
+
+/**
+ * Grok Build changelog is typically tip-only (SPA / Cloudflare HTML).
+ * When `afterVersion` is set we can only return the tip if it is newer;
+ * multi-version walk is not available — logged clearly.
+ */
+export async function fetchGrokBuildSince(
+  afterVersion: string | null,
+): Promise<Release[]> {
+  const tip = await parseTipFromChangelog();
+  if (!tip) return [];
+
+  if (afterVersion === null) return [tip];
+
+  if (tip.version === afterVersion) return [];
+
+  // Only the tip block is reliably parseable from the public page.
+  console.log(
+    `[grok_build] tip-only source; cannot walk full range after ${afterVersion}, only tip ${tip.version}`,
+  );
+
+  if (compareVersionIds(tip.version, afterVersion) > 0) return [tip];
+  return [];
+}
+
+async function parseTipFromChangelog(): Promise<Release | null> {
   const res = await fetch("https://x.ai/build/changelog", {
     headers: {
       "User-Agent": "agent-releases-bot",
@@ -17,7 +47,10 @@ export async function fetchLatestGrokBuild(): Promise<Release | null> {
     html.match(/##\s+Grok Build\s+(v?\d+\.\d+\.\d+)/i)?.[1]?.replace(/^v/, "") ||
     html.match(/\bv(\d+\.\d+\.\d+)\b/)?.[1];
 
-  if (!latest) return null;
+  if (!latest) {
+    console.warn("[grok_build] could not parse tip version from changelog HTML");
+    return null;
+  }
 
   // Collect list items near the first version heading
   const headingRe = new RegExp(

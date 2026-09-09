@@ -1,6 +1,6 @@
-import { fetchLatestClaude } from "./sources/claude.ts";
-import { fetchLatestCodex } from "./sources/codex.ts";
-import { fetchLatestGrokBuild } from "./sources/grok-build.ts";
+import { fetchLatestClaude, fetchClaudeSince } from "./sources/claude.ts";
+import { fetchLatestCodex, fetchCodexSince } from "./sources/codex.ts";
+import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.ts";
 import type { Product, Release } from "./sources/types.ts";
 import { readState, writeState, listChangedStateFiles } from "./state.ts";
 import { isNotable } from "./filter.ts";
@@ -11,12 +11,29 @@ import { writeFileSync } from "fs";
 
 const DRY_RUN = (process.env.DRY_RUN ?? "true").toLowerCase() !== "false";
 
-type FetchFn = () => Promise<Release | null>;
+type FetchLatest = () => Promise<Release | null>;
+type FetchSince = (afterVersion: string) => Promise<Release[]>;
 
-const FETCHERS: { product: Product; fetch: FetchFn }[] = [
-  { product: "claude", fetch: fetchLatestClaude },
-  { product: "codex", fetch: fetchLatestCodex },
-  { product: "grok_build", fetch: fetchLatestGrokBuild },
+const FETCHERS: {
+  product: Product;
+  fetchLatest: FetchLatest;
+  fetchSince: FetchSince;
+}[] = [
+  {
+    product: "claude",
+    fetchLatest: fetchLatestClaude,
+    fetchSince: (after) => fetchClaudeSince(after),
+  },
+  {
+    product: "codex",
+    fetchLatest: fetchLatestCodex,
+    fetchSince: (after) => fetchCodexSince(after),
+  },
+  {
+    product: "grok_build",
+    fetchLatest: fetchLatestGrokBuild,
+    fetchSince: (after) => fetchGrokBuildSince(after),
+  },
 ];
 
 async function handleOne(product: Product, release: Release): Promise<boolean> {
@@ -50,17 +67,41 @@ async function handleOne(product: Product, release: Release): Promise<boolean> {
   return true;
 }
 
+async function processProduct(
+  product: Product,
+  fetchLatest: FetchLatest,
+  fetchSince: FetchSince,
+): Promise<boolean> {
+  const prev = readState(product);
+
+  // Seed (no state): still seed latest without posting
+  if (prev === null) {
+    const tip = await fetchLatest();
+    if (!tip) {
+      console.log(`[warn] no release for ${product}`);
+      return false;
+    }
+    return handleOne(product, tip);
+  }
+
+  const range = await fetchSince(prev);
+  const tipVer = range.length > 0 ? range[range.length - 1].version : prev;
+  console.log(`[walk] ${product} ${prev}..${tipVer} (${range.length})`);
+
+  let changed = false;
+  for (const release of range) {
+    const did = await handleOne(product, release);
+    changed = changed || did;
+  }
+  return changed;
+}
+
 async function main() {
   console.log(`agent-releases start DRY_RUN=${DRY_RUN}`);
   let changed = false;
-  for (const { product, fetch } of FETCHERS) {
+  for (const { product, fetchLatest, fetchSince } of FETCHERS) {
     try {
-      const release = await fetch();
-      if (!release) {
-        console.log(`[warn] no release for ${product}`);
-        continue;
-      }
-      const did = await handleOne(product, release);
+      const did = await processProduct(product, fetchLatest, fetchSince);
       changed = changed || did;
     } catch (e) {
       console.error(`[error] ${product}`, e);

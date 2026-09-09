@@ -1,22 +1,33 @@
+/** Strip Anthropic-style boilerplate that looks like feature language but isn't. */
+function stripBoilerplate(notes: string): string {
+  return notes
+    .replace(/^#+\s*what'?s\s+changed\s*$/gim, "")
+    .replace(/^#+\s*what\s+has\s+changed\s*$/gim, "")
+    .trim();
+}
+
 /** Returns true if notes look feature-worthy (not Fixed-only). */
 export function isNotable(notes: string): boolean {
-  const text = notes || "";
-  const lower = text.toLowerCase();
+  const text = stripBoilerplate(notes || "");
 
+  // Word hints: do NOT include bare "change(d)" — it matches "What's changed"
+  // and incidental phrases like "no configuration change is needed" in Fixed notes.
   const featureHints =
-    /\b(added|add|new feature|new features|improved|improve|changed|change|removed|remove|introduc|support for|supports)\b/i.test(
+    /\b(added|add|new feature|new features|improved|improve|removed|remove|introduc|support for|supports)\b/i.test(
       text,
     ) ||
     /新增|支持|改进|优化|变更|移除|推出/.test(text) ||
-    /^[-*]\s*added\b/im.test(text) ||
-    /###?\s*(new features|features|added|changed|improved|removed)/i.test(text);
+    /^[-*]\s*(added|changed|improved|removed)\b/im.test(text) ||
+    // Keep a Changelog section titles only (## Changed), not "## What's changed"
+    /^#{1,3}\s*(new features|features|added|changed|improved|removed)\s*$/im.test(text);
 
   const onlyBugfix =
     /bug fixes? and reliability improvements/i.test(text.trim()) ||
     (/^\s*[-*]\s*(fixed|fix|bug)\b/im.test(text) &&
       !featureHints &&
       text.split("\n").filter((l) => l.trim().startsWith("-") || l.trim().startsWith("*")).length <= 3 &&
-      !/\b(added|improved|changed|removed)\b/i.test(text));
+      !/\b(added|improved|removed)\b/i.test(text) &&
+      !/^[-*]\s*changed\b/im.test(text));
 
   if (onlyBugfix) return false;
   if (featureHints) return true;
@@ -32,7 +43,7 @@ export function isNotable(notes: string): boolean {
 }
 
 export function pickBullets(notes: string, max = 3): string[] {
-  const lines = notes
+  const lines = stripBoilerplate(notes)
     .split("\n")
     .map((l) => l.replace(/^#+\s*/, "").trim())
     .filter(Boolean);
