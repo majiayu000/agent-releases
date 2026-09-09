@@ -4,7 +4,7 @@
  */
 import type { Release } from "./sources/types.ts";
 import { PRODUCT_NAME, PRODUCT_TAG } from "./sources/types.ts";
-import { pickBullets } from "./filter.ts";
+import { pickBullets, stripDiscardedChangelogLines } from "./filter.ts";
 
 const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/anthropic";
 /** Default BigModel draft model (override with DRAFT_MODEL). */
@@ -32,7 +32,7 @@ function buildPrompt(release: Release): string {
   const notesBlock =
     bullets.length > 0
       ? bullets.map((b, i) => `${i + 1}. ${b}`).join("\n")
-      : release.notes.slice(0, 2500);
+      : stripDiscardedChangelogLines(release.notes).slice(0, 2500);
 
   return `你是发版情报整理助手。根据下方英文发版说明，写一条完整的中文 X（Twitter）帖文。
 

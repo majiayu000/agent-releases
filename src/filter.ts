@@ -42,30 +42,85 @@ export function isNotable(notes: string): boolean {
   return !fixedOnly && bullets.length > 0;
 }
 
-export function pickBullets(notes: string, max = 3): string[] {
+/** Drop changelog noise: compare URLs, section labels, GitHub PR-title lines. */
+export function isDiscardedChangelogLine(text: string): boolean {
+  const l = text.trim();
+  return (
+    l.length <= 8 ||
+    /^full changelog\b/i.test(l) ||
+    /^changelog:/i.test(l) ||
+    /^#\d+\b/.test(l)
+  );
+}
+
+function extractChangelogBullets(notes: string): { kept: string[]; hadCandidates: boolean } {
   const lines = stripBoilerplate(notes)
     .split("\n")
     .map((l) => l.replace(/^#+\s*/, "").trim())
     .filter(Boolean);
 
-  const bullets = lines
+  const candidates = lines
     .filter((l) => /^[-*]/.test(l) || /^\d+\./.test(l))
     .map((l) => l.replace(/^[-*]\s*/, "").replace(/^\d+\.\s*/, "").trim())
-    .filter((l) => l.length > 8)
-    .filter((l) => !/^full changelog/i.test(l))
-    .filter((l) => !/^changelog:/i.test(l))
-    // Drop GitHub PR-title changelog lines: "#42874 [0.153 hotfix] Title @user"
-    .filter((l) => !/^#\d+\b/.test(l));
+    .filter(Boolean);
 
-  // Prefer narrative feature/update lines; keep substantial Bug Fixes prose
-  // (not bare "Fixed X") when there aren't enough non-fix bullets.
-  const preferred = bullets.filter(
-    (b) =>
-      !/^(fixed|fix|bug)\b/i.test(b) ||
-      /\b(added|improved|changed|new|updated)\b/i.test(b) ||
-      // Narrative Fixed bullets: long enough to carry product detail
-      (/^fixed\b/i.test(b) && b.length >= 60),
-  );
-  const pool = preferred.length >= max ? preferred : bullets;
-  return pool.slice(0, max);
+  return {
+    kept: candidates.filter((l) => !isDiscardedChangelogLine(l)),
+    hadCandidates: candidates.length > 0,
+  };
+}
+
+/** True when notes had bullet lines but every one was discarded as noise. */
+export function changelogHadOnlyDiscardedBullets(notes: string): boolean {
+  const { kept, hadCandidates } = extractChangelogBullets(notes);
+  return hadCandidates && kept.length === 0;
+}
+
+/** Strip PR-title / changelog-compare lines from notes (LLM fallback input). */
+export function stripDiscardedChangelogLines(notes: string): string {
+  return stripBoilerplate(notes)
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => {
+      const t = l.trim();
+      if (!t) return false;
+      const body = t
+        .replace(/^[-*]\s*/, "")
+        .replace(/^\d+\.\s*/, "")
+        .replace(/^#+\s*/, "")
+        .trim();
+      return !isDiscardedChangelogLine(body);
+    })
+    .join("\n")
+    .trim();
+}
+
+function isNonFixBullet(b: string): boolean {
+  // Leading Updated/Added/Improved already count as non-fix.
+  // Do not treat incidental "updated" inside a Fixed sentence as a feature.
+  return !/^(fixed|fix|bug)\b/i.test(b) || /\b(added|improved|changed|new)\b/i.test(b);
+}
+
+function isNarrativeFix(b: string): boolean {
+  return /^fixed\b/i.test(b) && b.length >= 60;
+}
+
+export function pickBullets(notes: string, max = 3): string[] {
+  const { kept: bullets } = extractChangelogBullets(notes);
+  if (max <= 0) return [];
+
+  const selected: string[] = [];
+  const take = (pool: string[]) => {
+    for (const b of pool) {
+      if (selected.length >= max) return;
+      if (!selected.includes(b)) selected.push(b);
+    }
+  };
+
+  // Non-fix first; fill leftover slots with long narrative Fixed lines, then
+  // any remaining bullets so a lone preferred item is not dropped.
+  take(bullets.filter(isNonFixBullet));
+  take(bullets.filter(isNarrativeFix));
+  take(bullets);
+  return selected;
 }

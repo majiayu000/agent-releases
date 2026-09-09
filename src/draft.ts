@@ -1,6 +1,6 @@
 import type { Release } from "./sources/types.ts";
 import { PRODUCT_NAME, PRODUCT_TAG } from "./sources/types.ts";
-import { pickBullets } from "./filter.ts";
+import { isDiscardedChangelogLine, pickBullets } from "./filter.ts";
 import { isLlmDraftConfigured, draftChinesePostWithLlm } from "./draft-llm.ts";
 import { trimPostToWeightedLimit, weightedXLength, X_WEIGHTED_LIMIT } from "./x-length.ts";
 
@@ -186,9 +186,19 @@ function rewriteKnownShapes(english: string): string | null {
     return `修复恢复/子代理相关提示缓存问题${extra}`.trim();
   }
 
-  // Codex hotfix: Fixed Astra visibility / bundled model picker
-  if (/^Fixed\b/i.test(e) && /\bAstra\b/i.test(e) && /model picker/i.test(e)) {
-    return "修复 Astra 在内置模型选择器中的可见性，未显式配置模型时设为默认";
+  // Codex hotfix: Fixed Astra visibility / bundled model picker.
+  // Require visibility language so unrelated Fixed+Astra+model-picker notes
+  // do not invent visibility/default claims.
+  if (
+    /^Fixed\b/i.test(e) &&
+    /\bAstra\b/i.test(e) &&
+    /model picker/i.test(e) &&
+    /visibility/i.test(e)
+  ) {
+    if (/default/i.test(e) || /configured/i.test(e)) {
+      return "修复 Astra 在内置模型选择器中的可见性，未显式配置模型时设为默认";
+    }
+    return "修复 Astra 在内置模型选择器中的可见性";
   }
 
   // Codex hotfix: Updated Astra async-question guidance by tool availability
@@ -287,11 +297,14 @@ export function draftChinesePostRuleBased(release: Release): string {
   const header = `${tag}${name} ${release.displayVersion} 出了（非官方）`;
 
   let raw = pickBullets(release.notes, 3);
+  // Sentence-split when no kept bullets. Discarded #NNNN / Full Changelog
+  // lines are filtered out, but usable non-bullet prose still participates.
   if (raw.length === 0) {
     raw = release.notes
       .split(/[.\n]/)
       .map((s) => s.trim())
       .filter((s) => s.length > 20)
+      .filter((s) => !isDiscardedChangelogLine(s))
       .slice(0, 3);
   }
 
