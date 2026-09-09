@@ -8,11 +8,11 @@ on:
       dry_run:
         description: "DRY_RUN (true=Issue only, false=post to X)"
         required: true
-        default: "true"
+        default: "false"
         type: choice
         options:
-          - "true"
           - "false"
+          - "true"
 
 concurrency:
   group: agent-releases
@@ -37,7 +37,7 @@ jobs:
 
       - name: Generate drafts / post
         env:
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run || 'true' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run || 'false' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           X_API_KEY: ${{ secrets.X_API_KEY }}
