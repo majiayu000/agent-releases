@@ -53,7 +53,7 @@ async function handleOne(product: Product, release: Release): Promise<boolean> {
     return true;
   }
 
-  const text = draftChinesePost(release);
+  const text = await draftChinesePost(release);
   console.log(`\n=== draft ${product} ${release.version} ===\n${text}\n`);
 
   if (DRY_RUN) {

@@ -1,6 +1,7 @@
 import type { Release } from "./sources/types.ts";
 import { PRODUCT_NAME, PRODUCT_TAG } from "./sources/types.ts";
 import { pickBullets } from "./filter.ts";
+import { isLlmDraftConfigured, draftChinesePostWithLlm } from "./draft-llm.ts";
 
 /** Leading changelog verbs → Chinese. */
 const LEADING_VERBS: [RegExp, string][] = [
@@ -192,8 +193,9 @@ function applyPhraseTable(s: string): string {
 /**
  * Max run of Latin letters outside backticks, allowing spaces/hyphens
  * inside an English clause so "to the telemetry … pointing" still trips.
+ * Shared with LLM draft validation.
  */
-function maxLatinRunOutsideBackticks(s: string): number {
+export function maxLatinRunOutsideBackticks(s: string): number {
   const stripped = s.replace(BT_RE, "§");
   let max = 0;
   let cur = 0;
@@ -259,7 +261,8 @@ function isFixedOnlyBullet(s: string): boolean {
   return /^(修复|Fixed|Fix)\b/i.test(t) || /^\[VS Code\]\s*修复\b/.test(t);
 }
 
-export function draftChinesePost(release: Release): string {
+/** Rule-based Chinese draft (no LLM). */
+export function draftChinesePostRuleBased(release: Release): string {
   const tag = PRODUCT_TAG[release.product];
   const name = PRODUCT_NAME[release.product];
   const header = `${tag}${name} ${release.displayVersion} 出了（非官方）`;
@@ -304,6 +307,45 @@ export function draftChinesePost(release: Release): string {
     }
   }
   return post;
+}
+
+
+function validateLlmDraft(text: string, release: Release): string | null {
+  const tag = PRODUCT_TAG[release.product];
+  const name = PRODUCT_NAME[release.product];
+  const headerHint = `${tag}${name} ${release.displayVersion}`;
+  const hasHeader =
+    text.includes(headerHint) ||
+    (text.includes(tag) && text.includes(release.displayVersion));
+  if (!hasHeader) return "missing product version/header tag";
+  if (!text.includes(release.url)) return "missing release.url";
+  if (maxLatinRunOutsideBackticks(text) > 40) return "long English run";
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return "too few lines";
+  return null;
+}
+
+/**
+ * Prefer LLM Chinese draft when ANTHROPIC_API_KEY is set;
+ * on any failure/timeout/bad shape, fall back to rule-based path.
+ */
+export async function draftChinesePost(release: Release): Promise<string> {
+  if (!isLlmDraftConfigured()) {
+    return draftChinesePostRuleBased(release);
+  }
+  try {
+    const llm = await draftChinesePostWithLlm(release);
+    const reason = validateLlmDraft(llm, release);
+    if (reason) {
+      console.warn(`[draft-llm] fallback: ${reason}`);
+      return draftChinesePostRuleBased(release);
+    }
+    return llm;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[draft-llm] fallback: ${msg}`);
+    return draftChinesePostRuleBased(release);
+  }
 }
 
 /** Exported for self-check / fixtures. */
