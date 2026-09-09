@@ -53,10 +53,18 @@ export function pickBullets(notes: string, max = 3): string[] {
     .map((l) => l.replace(/^[-*]\s*/, "").replace(/^\d+\.\s*/, "").trim())
     .filter((l) => l.length > 8)
     .filter((l) => !/^full changelog/i.test(l))
-    .filter((l) => !/^changelog:/i.test(l));
+    .filter((l) => !/^changelog:/i.test(l))
+    // Drop GitHub PR-title changelog lines: "#42874 [0.153 hotfix] Title @user"
+    .filter((l) => !/^#\d+\b/.test(l));
 
+  // Prefer narrative feature/update lines; keep substantial Bug Fixes prose
+  // (not bare "Fixed X") when there aren't enough non-fix bullets.
   const preferred = bullets.filter(
-    (b) => !/^(fixed|fix|bug)\b/i.test(b) || /\b(added|improved|changed|new)\b/i.test(b),
+    (b) =>
+      !/^(fixed|fix|bug)\b/i.test(b) ||
+      /\b(added|improved|changed|new|updated)\b/i.test(b) ||
+      // Narrative Fixed bullets: long enough to carry product detail
+      (/^fixed\b/i.test(b) && b.length >= 60),
   );
   const pool = preferred.length >= max ? preferred : bullets;
   return pool.slice(0, max);

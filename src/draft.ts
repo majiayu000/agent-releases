@@ -72,6 +72,10 @@ const PHRASES: [RegExp, string][] = [
   [/\bMCP servers?\b/gi, "MCP 服务器"],
   [/\bOAuth client\b/gi, "OAuth 客户端"],
   [/\bidle timeout\b/gi, "空闲超时"],
+  [/\bbundled model picker\b/gi, "内置模型选择器"],
+  [/\bmodel picker\b/gi, "模型选择器"],
+  [/\basynchronous questions?\b/gi, "异步提问"],
+  [/\btool is available\b/gi, "工具可用"],
   [/\bgateway\b/gi, "gateway"],
   [/\bresume(?:d|ing)?\b/gi, "恢复"],
   [/\byou can\b/gi, "可以"],
@@ -180,6 +184,20 @@ function rewriteKnownShapes(english: string): string | null {
     const toks = extractBacktickTokens(e);
     const extra = toks.length ? " " + toks.slice(0, 2).join(" ") : "";
     return `修复恢复/子代理相关提示缓存问题${extra}`.trim();
+  }
+
+  // Codex hotfix: Fixed Astra visibility / bundled model picker
+  if (/^Fixed\b/i.test(e) && /\bAstra\b/i.test(e) && /model picker/i.test(e)) {
+    return "修复 Astra 在内置模型选择器中的可见性，未显式配置模型时设为默认";
+  }
+
+  // Codex hotfix: Updated Astra async-question guidance by tool availability
+  if (
+    /^Updated\b/i.test(e) &&
+    /\bAstra\b/i.test(e) &&
+    /asynchronous questions?/i.test(e)
+  ) {
+    return "更新 Astra 指引：仅在会话提供该工具时使用异步提问";
   }
 
   return null;
