@@ -6,7 +6,8 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "check": "bun run src/index.ts",
-    "selfcheck:draft": "bun run src/draft-selfcheck.ts"
+    "selfcheck:draft": "bun run src/draft-selfcheck.ts",
+    "selfcheck:filter": "bun run src/filter-selfcheck.ts"
   },
   "dependencies": {
     "twitter-api-v2": "^1.17.2"
