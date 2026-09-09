@@ -2,6 +2,11 @@ name: test X post
 
 on:
   workflow_dispatch:
+    inputs:
+      text:
+        description: "Tweet body (optional; default is connectivity check text)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -21,4 +26,5 @@ jobs:
           X_API_SECRET: ${{ secrets.X_API_SECRET }}
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          TEST_TWEET_TEXT: ${{ github.event.inputs.text }}
         run: bun run src/test-x.ts
