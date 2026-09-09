@@ -297,14 +297,22 @@ export function draftChinesePostRuleBased(release: Release): string {
   const header = `${tag}${name} ${release.displayVersion} 出了（非官方）`;
 
   let raw = pickBullets(release.notes, 3);
-  // Sentence-split when no kept bullets. Discarded #NNNN / Full Changelog
-  // lines are filtered out, but usable non-bullet prose still participates.
+  // When no kept bullets remain, fall back to sentences from non-bullet prose
+  // only — never re-split discarded #NNNN / Full Changelog bullet lines.
   if (raw.length === 0) {
     raw = release.notes
-      .split(/[.\n]/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 20)
-      .filter((s) => !isDiscardedChangelogLine(s))
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+      .filter((l) => !/^[-*]/.test(l) && !/^\d+\./.test(l))
+      .flatMap((l) => {
+        const body = l.replace(/^#+\s*/, "").trim();
+        if (!body || isDiscardedChangelogLine(body)) return [];
+        return body
+          .split(/[.]/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 20 && !isDiscardedChangelogLine(s));
+      })
       .slice(0, 3);
   }
 

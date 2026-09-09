@@ -291,7 +291,7 @@ Full Changelog: https://github.com/openai/codex/compare/rust-v0.153.3...rust-v0.
   // Discarded #NNNN bullets must not block usable non-bullet prose fallback.
   const discardedPlusProse = `## Notes
 
-Astra now surfaces clearer recovery tips when a session tool is missing.
+Fixed Astra's visibility in the bundled model picker and made it the bundled default when no model is configured.
 
 ## Changelog
 
@@ -306,8 +306,12 @@ Astra now surfaces clearer recovery tips when a session tool is missing.
     console.error("FAIL: prose fallback skipped despite usable non-bullet notes");
     process.exit(1);
   }
-  if (!/recovery|恢复|提示|tool|工具|session|会话/i.test(prosePost)) {
+  if (!prosePost.includes("模型选择器") && !/model picker/i.test(prosePost)) {
     console.error("FAIL: usable non-bullet prose missing from draft", prosePost);
+    process.exit(1);
+  }
+  if (/•\s*#\d+/.test(prosePost) || /#\d+\s+\[/.test(prosePost)) {
+    console.error("FAIL: discarded PR-title bullet leaked via prose fallback");
     process.exit(1);
   }
   console.log("OK: discarded bullets still allow non-bullet prose fallback");
