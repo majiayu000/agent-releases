@@ -17,6 +17,14 @@ export const PRODUCT_TAG: Record<Product, string> = {
   grok_build: "【Grok Build】",
 };
 
+const PRODUCT_TAG_ALT = Object.values(PRODUCT_TAG)
+  .map(tag => tag.slice(1, -1).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  .sort((a, b) => b.length - a.length)
+  .join("|");
+
+/** Matches the live tweet heading, including 【Grok Build】. */
+export const TWEET_VERSION_KEY = new RegExp(`【(${PRODUCT_TAG_ALT})】[\\s\\S]*?(\\d+\\.\\d+\\.\\d+|rust-v[\\d.]+)`);
+
 export const PRODUCT_NAME: Record<Product, string> = {
   claude: "Claude Code",
   codex: "Codex CLI",

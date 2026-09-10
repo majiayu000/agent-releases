@@ -114,10 +114,9 @@ export function parseVersionBlocks(html: string): Release[] {
   for (let i = 0; i < ordered.length; i++) {
     const version = ordered[i]!;
     const start = hits.find((h) => h.version === version)!.index;
-    const end =
-      i + 1 < ordered.length
-        ? hits.find((h) => h.version === ordered[i + 1]!)!.index
-        : Math.min(cleaned.length, start + 6000);
+    const end = i + 1 < ordered.length
+      ? hits.find((h) => h.version === ordered[i + 1]!)!.index
+      : cleaned.length;
     const chunk = cleaned.slice(start, end);
     const notes = extractNotes(chunk);
     releases.push({
@@ -135,6 +134,7 @@ export function parseVersionBlocks(html: string): Release[] {
 
 function extractNotes(chunk: string): string {
   // Keep section headings in document order so Bug Fixes remains excluded.
+  // Never stop at an item cap: later Features after a long Bug Fixes list must stay.
   const lines: string[] = [];
   let items = 0;
   for (const match of chunk.matchAll(/<(h[1-6]|li)\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
@@ -147,18 +147,18 @@ function extractNotes(chunk: string): string {
       .replace(/\s+/g, " ")
       .trim();
     if (match[1]!.toLowerCase() !== "li") {
-      lines.push(`## ${text}`);
+      const hashes = "#".repeat(Number(match[1]!.slice(1)) || 2);
+      lines.push(`${hashes} ${text}`);
     } else if (text) {
       lines.push(`- ${text}`);
-      if (++items === 20) break;
+      items++;
     }
   }
   if (items > 0) return lines.join("\n");
 
   const md = [...chunk.matchAll(/^[-*]\s+(.+)$/gm)]
     .map((m) => `- ${m[1]!.trim()}`)
-    .filter((t) => t.length > 4)
-    .slice(0, 15);
+    .filter((t) => t.trim().length > 0);
   if (md.length > 0) return md.join("\n");
 
   const text = chunk

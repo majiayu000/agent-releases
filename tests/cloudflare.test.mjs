@@ -12,9 +12,19 @@ const schema = readFileSync(new URL('../migrations/0001_publications.sql', impor
 const products = ['claude', 'codex', 'grok_build'];
 const day = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 
-async function setup(t, { preview = false, failX = false, failSource = false, failDraft = false } = {}) {
+async function setup(t, { preview = false, failX = false, failSource = false, failDraft = false, missingX = false } = {}) {
   const calls = { tweets: 0, drafts: 0 };
   let db;
+  const secrets = {
+    DRY_RUN: String(preview),
+    ANTHROPIC_API_KEY: 'test-only',
+    ...(missingX ? {} : {
+      X_API_KEY: 'test-only',
+      X_API_SECRET: 'test-only',
+      X_ACCESS_TOKEN: 'test-only',
+      X_ACCESS_TOKEN_SECRET: 'test-only',
+    }),
+  };
   const mf = new Miniflare({
     log: new Log(LogLevel.ERROR), telemetry: { enabled: false },
     workers: [{
@@ -23,7 +33,7 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
         manifest: { mainModule: 'worker.js', modules: { 'worker.js': { type: 'esm', contents: bundle } } },
         env: {
           DB: { type: 'd1', id: 'test-db' },
-          ...Object.fromEntries(Object.entries({ DRY_RUN: String(preview), ANTHROPIC_API_KEY: 'test-only', X_API_KEY: 'test-only', X_API_SECRET: 'test-only', X_ACCESS_TOKEN: 'test-only', X_ACCESS_TOKEN_SECRET: 'test-only' }).map(([k, value]) => [k, { type: 'text', value }])),
+          ...Object.fromEntries(Object.entries(secrets).map(([k, value]) => [k, { type: 'text', value }])),
         },
       },
       dev: { outboundService: { type: 'fetcher', handler: async request => {
@@ -177,6 +187,23 @@ test('ledger import preserves cursors and confirmed IDs, ignores previews and re
   assert.notEqual(blocked.status, 0);
   assert.equal(blocked.stdout, '');
   assert.match(blocked.stderr, /Reconcile pending/);
+});
+
+test('a deferred reservation still publishes later products', async t => {
+  const { db, calls, run } = await setup(t);
+  await db.prepare("CREATE TRIGGER skip_claude BEFORE INSERT ON publications WHEN NEW.product = 'claude' BEGIN SELECT RAISE(IGNORE); END").run();
+  assert.equal((await run()).outcome, 'ok');
+  const products = (await db.prepare("SELECT product FROM publications WHERE status='posted'").all()).results.map(r => r.product);
+  assert.deepEqual([...products].sort(), ['codex', 'grok_build']);
+  assert.equal(calls.tweets, 2);
+});
+
+test('missing X secrets cannot create a pending publication', async t => {
+  const { db, calls, run } = await setup(t, { missingX: true });
+  assert.equal((await run()).outcome, 'exception');
+  assert.equal(calls.tweets, 0);
+  assert.equal(calls.drafts, 0);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM publications').first()).n, 0);
 });
 
 test('reservation storage failure cannot reach X', async t => {

@@ -102,82 +102,41 @@ async function fetchClaudeReleasePages(
 /**
  * Releases newer than `afterVersion` (exclusive), oldest-first.
  * Pass `null` to get only the tip (for seeding).
+ *
+ * The version list always comes from GitHub. CHANGELOG.md only fills in notes
+ * when a GitHub release body is missing or too short — it never replaces the walk.
  */
 export async function fetchClaudeSince(afterVersion: string | null): Promise<Release[]> {
-  try {
-    const list = await fetchClaudeReleasePages(afterVersion);
-    const stables = list.filter((r) => !r.draft && !r.prerelease && /^v?\d+\.\d+\.\d+$/.test(r.tag_name));
-    if (!stables.length) throw new Error("Claude API returned no stable releases");
+  const list = await fetchClaudeReleasePages(afterVersion);
+  const stables = list.filter((r) => !r.draft && !r.prerelease && /^v?\d+\.\d+\.\d+$/.test(r.tag_name));
+  if (!stables.length) throw new Error("Claude API returned no stable releases");
 
-    let needChangelog = false;
-    const mapped: { rel: GhRelease; tag: string }[] = [];
-    for (const rel of stables) {
-      const tag = rel.tag_name.replace(/^v/, "");
-      if (afterVersion !== null && compareVersionIds(tag, afterVersion) <= 0) continue;
-      mapped.push({ rel, tag });
-      if ((rel.body?.trim().length ?? 0) < 40) needChangelog = true;
-    }
-
-    // Tip-only when seeding
-    if (afterVersion === null) {
-      const tip = stables[0];
-      if (!tip) return [];
-      const md = (tip.body?.trim().length ?? 0) < 40 ? await fetchChangelogMd() : null;
-      return [await toRelease(tip, md)];
-    }
-
-    // API is newest-first; we want oldest-first
-    mapped.sort((a, b) => compareVersionIds(a.tag, b.tag));
-
-    const md = needChangelog ? await fetchChangelogMd() : null;
-    const out: Release[] = [];
-    for (const { rel } of mapped) {
-      out.push(await toRelease(rel, md));
-    }
-    return out;
-  } catch (e) {
-    console.warn("[claude] API error, fallback to CHANGELOG.md", e);
-    return fetchClaudeSinceFromChangelog(afterVersion);
-  }
-}
-
-async function fetchClaudeSinceFromChangelog(
-  afterVersion: string | null,
-): Promise<Release[]> {
-  const md = await fetchChangelogMd();
-  if (!md) throw new Error("Claude changelog unavailable");
-  const tags = [...md.matchAll(/^##\s+(\d+\.\d+\.\d+)\s*$/gm)].map((m) => m[1]!);
-  if (tags.length === 0) throw new Error("Claude changelog has no version headings");
-  if (afterVersion !== null && !tags.some(tag => compareVersionIds(tag, afterVersion) <= 0)) {
-    throw new Error(`Claude changelog history does not reach ${afterVersion}`);
+  let needChangelog = false;
+  const mapped: { rel: GhRelease; tag: string }[] = [];
+  for (const rel of stables) {
+    const tag = rel.tag_name.replace(/^v/, "");
+    if (afterVersion !== null && compareVersionIds(tag, afterVersion) <= 0) continue;
+    mapped.push({ rel, tag });
+    if ((rel.body?.trim().length ?? 0) < 40) needChangelog = true;
   }
 
+  // Tip-only when seeding
   if (afterVersion === null) {
-    const tag = tags[0]!;
-    return [
-      {
-        product: "claude",
-        version: tag,
-        displayVersion: tag,
-        title: `Claude Code ${tag}`,
-        notes: extractChangelogSection(md, tag) || "",
-        url: `https://github.com/anthropics/claude-code/releases/tag/v${tag}`,
-      },
-    ];
+    const tip = stables[0];
+    if (!tip) return [];
+    const md = (tip.body?.trim().length ?? 0) < 40 ? await fetchChangelogMd() : null;
+    return [await toRelease(tip, md)];
   }
 
-  const newer = tags
-    .filter((t) => compareVersionIds(t, afterVersion) > 0)
-    .sort((a, b) => compareVersionIds(a, b));
+  // API is newest-first; we want oldest-first
+  mapped.sort((a, b) => compareVersionIds(a.tag, b.tag));
 
-  return newer.map((tag) => ({
-    product: "claude" as const,
-    version: tag,
-    displayVersion: tag,
-    title: `Claude Code ${tag}`,
-    notes: extractChangelogSection(md, tag) || "",
-    url: `https://github.com/anthropics/claude-code/releases/tag/v${tag}`,
-  }));
+  const md = needChangelog ? await fetchChangelogMd() : null;
+  const out: Release[] = [];
+  for (const { rel } of mapped) {
+    out.push(await toRelease(rel, md));
+  }
+  return out;
 }
 
 async function fetchChangelogMd(): Promise<string | null> {

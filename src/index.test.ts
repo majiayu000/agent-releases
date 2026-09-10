@@ -12,6 +12,7 @@ import { fetchClaudeSince } from "./sources/claude.ts";
 import { fetchCodexSince } from "./sources/codex.ts";
 import { parseVersionBlocks } from "./sources/grok-build.ts";
 import type { Product, Release } from "./sources/types.ts";
+import { TWEET_VERSION_KEY } from "./sources/types.ts";
 
 const root = process.cwd();
 const realFetch = globalThis.fetch;
@@ -167,6 +168,35 @@ describe("release content", () => {
     const mixed = parse("<h3>Bug Fixes</h3><ul><li>Terminal crashes when reopening a session</li></ul><h3>Features</h3><ul><li>Added custom command support</li></ul>");
     expect(pickBullets(mixed.notes)).toEqual(["Added custom command support"]);
     expect(isNotable(parse("<ul><li>Added custom command support</li></ul>").notes)).toBe(true);
+    const nestedFixes = parse("<h3>Bug Fixes</h3><h4>Windows</h4><ul><li>Terminal crashes when reopening a session</li></ul>");
+    expect(isNotable(nestedFixes.notes)).toBe(false);
+    const longFixesThenFeature = parse(
+      `<h3>Bug Fixes</h3><ul>${Array.from({ length: 20 }, (_, i) => `<li>Fixed crash number ${i} when reopening a session</li>`).join("")}</ul><h3>Features</h3><ul><li>Added unique feature never seen before</li></ul>`,
+    );
+    expect(longFixesThenFeature.notes).toContain("Added unique feature never seen before");
+    expect(isNotable(longFixesThenFeature.notes)).toBe(true);
+    expect(pickBullets(longFixesThenFeature.notes)).toEqual(["Added unique feature never seen before"]);
+    const grokTweet = "【Grok Build】Grok Build 1.0.24 发布\n\n• 调整 Esc 的交互行为\n\nhttps://x.ai/build/changelog";
+    const grokKey = grokTweet.match(TWEET_VERSION_KEY);
+    expect(grokKey?.[1]).toBe("Grok Build");
+    expect(grokKey?.[2]).toBe("1.0.24");
+    expect("【Grok】Grok 1.0.24 发布".match(TWEET_VERSION_KEY)).toBeNull();
+  });
+
+  test("Grok last version block keeps Features after a long Bug Fixes list", () => {
+    const longFix = `<li>${"Fixed crash when reopening a session after a network timeout. ".repeat(8)}</li>`;
+    const html = [
+      "<h2>Grok Build 1.0.0</h2><ul><li>Added old command support</li></ul>",
+      "<h2>Grok Build 1.0.1</h2>",
+      "<h3>Bug Fixes</h3>",
+      `<ul>${longFix.repeat(20)}</ul>`,
+      "<h3>Features</h3><ul><li>Added unique feature never seen before</li></ul>",
+    ].join("");
+    expect(html.length).toBeGreaterThan(6000);
+    const latest = parseVersionBlocks(html).find(block => block.version === "1.0.1")!;
+    expect(latest.notes).toContain("Added unique feature never seen before");
+    expect(isNotable(latest.notes)).toBe(true);
+    expect(pickBullets(latest.notes)).toEqual(["Added unique feature never seen before"]);
   });
 
   test("Fixed-only hints cannot masquerade as features", () => {
@@ -174,10 +204,21 @@ describe("release content", () => {
     expect(isNotable("## Bug Fixes\n- Added a missing null check")).toBe(false);
     expect(isNotable("## Fixed\n- A crash when loading plugins")).toBe(false);
     expect(isNotable("- Windows: Fixed support for custom tools")).toBe(false);
+    expect(isNotable("- fix: prevent terminal crash when reconnecting")).toBe(false);
+    expect(isNotable("## Bug Fixes\n### Windows\n- Terminal crashes when reopening a session")).toBe(false);
+    expect(isNotable("## Bug Fixes\n### Windows\n- Added a missing null check")).toBe(false);
     expect(() => isNotable("Unparseable release body")).toThrow("No structured");
     expect(isNotable("- Added new terminal support\n- Bug fixes and reliability improvements")).toBe(true);
     expect(pickBullets("- Fixed first crash\n- Fixed second crash\n- Fixed third crash\n- Added plugin discovery")).toEqual(["Added plugin discovery"]);
+    expect(pickBullets("## Bug Fixes\n### Windows\n- Terminal crashes when reopening\n## Features\n- Added custom command support")).toEqual(["Added custom command support"]);
     expect(isNotable("## Changelog\n- #42874 Show model picker @author")).toBe(false);
+    expect(isNotable("## Changelog\n- Added support for custom commands")).toBe(true);
+    expect(isNotable("- Add MCP")).toBe(true);
+    expect(isNotable("- Scroll history after sending a prompt no longer jumps the viewport unexpectedly")).toBe(false);
+    expect(isNotable("- 发送提示后滚动位置不再意外跳动")).toBe(false);
+    expect(isNotable("- Esc no longer cancels a running turn and instead reminds you to use Ctrl+C")).toBe(true);
+    expect(isNotable("- Added notifications when background agents exit unexpectedly")).toBe(true);
+    expect(isNotable("- Added automatic recovery for sessions that unexpectedly disconnect")).toBe(true);
     expect(() => isNotable("")).toThrow("Empty release notes");
   });
 
@@ -211,6 +252,7 @@ describe("release content", () => {
     const result = await draftChinesePost(release());
     expect(body.output_config).toEqual({ effort: "low" });
     expect(body.reasoning_effort).toBeUndefined();
+    expect(body.max_tokens).toBe(32_768);
     expect(result).toStartWith("【Claude】Claude Code 2.0.0 发布");
     expect(result).toEndWith(release().url);
   });
@@ -229,9 +271,27 @@ describe("release content", () => {
     expect(result).toEndWith(release().url);
   });
 
+  test("draft token budget is read per call", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-not-a-secret";
+    const previous = process.env.DRAFT_MAX_TOKENS;
+    process.env.DRAFT_MAX_TOKENS = "7777";
+    let body: Record<string, unknown> = {};
+    globalThis.fetch = (async (_url: RequestInfo | URL, options?: RequestInit) => {
+      body = JSON.parse(String(options?.body));
+      return Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: "• 新增自定义工具支持，方便扩展开发流程" }] });
+    }) as unknown as typeof fetch;
+    try {
+      await draftChinesePost(release());
+      expect(body.max_tokens).toBe(7777);
+    } finally {
+      if (previous === undefined) delete process.env.DRAFT_MAX_TOKENS;
+      else process.env.DRAFT_MAX_TOKENS = previous;
+    }
+  });
+
   test("Claude API plus changelog outage is an error, not zero updates", async () => {
     globalThis.fetch = (async () => new Response("down", { status: 503 })) as unknown as typeof fetch;
-    await expect(fetchClaudeSince("1.0.0")).rejects.toThrow("503");
+    await expect(fetchClaudeSince("1.0.0")).rejects.toThrow("Claude API HTTP 503");
   });
 
   test("Claude partial pagination never advances across a missing page", async () => {
@@ -239,7 +299,50 @@ describe("release content", () => {
       if (String(url).includes("page=1")) return Response.json(Array.from({ length: 30 }, (_, i) => ({ tag_name: `v2.0.${i}`, body: "- Added complete release information for testing" })));
       return new Response("down", { status: 503 });
     }) as unknown as typeof fetch;
-    await expect(fetchClaudeSince("1.0.0")).rejects.toThrow();
+    await expect(fetchClaudeSince("1.0.0")).rejects.toThrow("Claude API HTTP 503");
+  });
+
+  test("Claude GitHub failure does not switch the version list to CHANGELOG", async () => {
+    const changelog = "## 3.0.0\n\n- Added changelog-only feature that is not on GitHub\n\n## 1.0.0\n\n- Old\n";
+    globalThis.fetch = (async (url: RequestInfo | URL) => {
+      const s = String(url);
+      if (s.includes("api.github.com") && s.includes("page=1")) {
+        return Response.json(Array.from({ length: 30 }, (_, i) => ({ tag_name: `v2.0.${i}`, body: "- Added complete release information for testing" })));
+      }
+      if (s.includes("api.github.com")) return new Response("down", { status: 503 });
+      if (s.includes("CHANGELOG.md")) return new Response(changelog, { status: 200 });
+      return new Response(`unexpected ${s}`, { status: 500 });
+    }) as unknown as typeof fetch;
+    await expect(fetchClaudeSince("1.0.0")).rejects.toThrow("Claude API HTTP 503 page=2");
+  });
+
+  test("Claude first page failure does not use CHANGELOG as the version list", async () => {
+    globalThis.fetch = (async (url: RequestInfo | URL) => {
+      const s = String(url);
+      if (s.includes("api.github.com")) return new Response("down", { status: 503 });
+      if (s.includes("CHANGELOG.md")) return new Response("## 3.0.0\n\n- Added changelog-only feature\n\n## 1.0.0\n\n- Old\n", { status: 200 });
+      return new Response(`unexpected ${s}`, { status: 500 });
+    }) as unknown as typeof fetch;
+    await expect(fetchClaudeSince("1.0.0")).rejects.toThrow("Claude API HTTP 503 page=1");
+  });
+
+  test("CHANGELOG only fills notes for GitHub versions", async () => {
+    globalThis.fetch = (async (url: RequestInfo | URL) => {
+      const s = String(url);
+      if (s.includes("api.github.com")) {
+        return Response.json([
+          { tag_name: "v2.0.1", body: "short", draft: false, prerelease: false },
+          { tag_name: "v1.0.0", body: "- Added old tools", draft: false, prerelease: false },
+        ]);
+      }
+      if (s.includes("CHANGELOG.md")) {
+        return new Response("## 2.0.1\n\n- Added a complete changelog section for this GitHub tag\n\n## 1.0.0\n\n- Old\n", { status: 200 });
+      }
+      return new Response(`unexpected ${s}`, { status: 500 });
+    }) as unknown as typeof fetch;
+    const out = await fetchClaudeSince("1.0.0");
+    expect(out.map(r => r.version)).toEqual(["2.0.1"]);
+    expect(out[0]!.notes).toContain("Added a complete changelog section for this GitHub tag");
   });
 
   test("Codex cannot return a partial page window as complete history", async () => {

@@ -5,7 +5,7 @@ import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.
 import type { Product, Release } from "./sources/types.ts";
 import { isNotable } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
-import { postTweet } from "./twitter.ts";
+import { assertXCredentials, postTweet } from "./twitter.ts";
 
 interface Env { DB: D1Database; DRY_RUN: string }
 const sources = [
@@ -22,6 +22,7 @@ async function run(env: Env): Promise<void> {
   const db = env.DB;
   const unresolved = await pending(db);
   if (unresolved) throw new Error(`Reconcile pending X outcome before continuing: ${unresolved.product} ${unresolved.version}`);
+  if (!preview) assertXCredentials();
 
   // Finish all source reads and drafts before modifying state or calling X.
   const plans: { product: Product; previous: string | null; cursor: string; release?: Release; text?: string }[] = [];
@@ -73,19 +74,23 @@ async function run(env: Env): Promise<void> {
     if (reservation.meta.changes !== 1) {
       if (await pending(db)) throw new Error("Concurrent pending publication; reconcile before retry");
       console.log(`[deferred] ${plan.product} ${release.version}: already claimed, changed cursor or daily limit`);
-      return;
+      continue;
     }
     if (dayOf(new Date()) !== day) throw new Error("Daily boundary crossed after reservation; reconcile before retry");
     // Never retry automatically. Any exception, including lost DB acknowledgement,
     // leaves either a durable pending record or an already completed record.
     const tweetId = await postTweet(text!);
     if (!/^\d+$/.test(tweetId)) throw new Error("X returned no valid tweet ID; outcome unknown");
-    await db.batch([
+    const completion = await db.batch([
       db.prepare("UPDATE publications SET status = 'posted', tweet_id = ?, posted_at = ? WHERE product = ? AND version = ? AND status = 'pending'")
         .bind(tweetId, new Date().toISOString(), plan.product, release.version),
-      db.prepare("UPDATE cursors SET version = ? WHERE product = ? AND version = ?")
-        .bind(release.version, plan.product, plan.previous),
+      db.prepare(`UPDATE cursors SET version = ? WHERE product = ? AND version = ?
+        AND EXISTS (SELECT 1 FROM publications WHERE product = ? AND version = ? AND status = 'posted' AND tweet_id = ?)`)
+        .bind(release.version, plan.product, plan.previous, plan.product, release.version, tweetId),
     ]);
+    if (completion[0]?.meta.changes !== 1) {
+      throw new Error("Publication completion did not persist; reconcile pending X outcome");
+    }
     console.log(`[posted] ${plan.product} ${release.version}: ${tweetId}`);
   }
 }
