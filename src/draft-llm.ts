@@ -11,7 +11,7 @@ const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/anthropic";
 export const DEFAULT_MODEL = "glm-5.3-flash";
 const TIMEOUT_MS = Number(process.env.DRAFT_TIMEOUT_MS) || 60_000;
 /** Room for GLM forced-thinking + short post (override with DRAFT_MAX_TOKENS). */
-const MAX_TOKENS = Number(process.env.DRAFT_MAX_TOKENS) || 2048;
+const MAX_TOKENS = Number(process.env.DRAFT_MAX_TOKENS) || 8192;
 /**
  * GLM-5.3 / glm-5.3-flash always think; "disabled" → HTTP 400.
  * Use low effort so thinking does not eat the whole max_tokens budget.

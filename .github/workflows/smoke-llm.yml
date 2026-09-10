@@ -21,4 +21,5 @@ jobs:
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
           DRAFT_MODEL: ${{ secrets.DRAFT_MODEL }}
           DRAFT_TIMEOUT_MS: "90000"
+          DRAFT_MAX_TOKENS: "8192"
         run: bun run src/smoke-llm.ts
