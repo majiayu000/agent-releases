@@ -1,6 +1,5 @@
 /**
- * One-shot: print @agentreleases profile + recent tweets (uses X OAuth secrets).
- * Usage: bun run src/list-x.ts
+ * Print @agentreleases profile + recent tweets; flag version duplicates.
  */
 import { TwitterApi } from "twitter-api-v2";
 
@@ -25,17 +24,52 @@ const me = await client.v2.me({
 console.log("=== profile ===");
 console.log(JSON.stringify(me.data, null, 2));
 
-const tl = await client.v2.userTimeline(me.data.id, {
-  max_results: 10,
-  exclude: ["retweets", "replies"],
-  "tweet.fields": ["created_at", "text", "public_metrics"],
-});
-console.log("=== recent tweets ===");
-const rows = tl.data.data ?? [];
-if (!rows.length) console.log("(none)");
+const rows: { id: string; created_at?: string; text: string; public_metrics?: Record<string, number> }[] = [];
+let token: string | undefined;
+do {
+  const tl = await client.v2.userTimeline(me.data.id, {
+    max_results: 100,
+    exclude: ["retweets", "replies"],
+    "tweet.fields": ["created_at", "text", "public_metrics"],
+    pagination_token: token,
+  });
+  for (const t of tl.data.data ?? []) rows.push(t as (typeof rows)[number]);
+  token = tl.data.meta?.next_token;
+} while (token && rows.length < 200);
+
+console.log(`=== recent tweets (${rows.length}) ===`);
+const byKey = new Map<string, typeof rows>();
 for (const t of rows) {
   console.log("---");
   console.log(t.created_at, t.id);
-  console.log(t.text);
+  console.log(t.text.slice(0, 280));
   console.log("metrics", JSON.stringify(t.public_metrics));
+  const m = t.text.match(/【(Claude|Codex|Grok)】[^\n]*?(?:Claude Code|Codex CLI|Grok Build)?\s*([vV]?\d+\.\d+\.\d+|rust-v[\d.]+)/);
+  // softer key: product tag + version-ish
+  const m2 = t.text.match(/【(Claude|Codex|Grok)】[\s\S]*?(\d+\.\d+\.\d+|rust-v[\d.]+)/);
+  const key = m2 ? `${m2[1]}:${m2[2]}` : `other:${t.id}`;
+  const arr = byKey.get(key) ?? [];
+  arr.push(t);
+  byKey.set(key, arr);
+}
+
+console.log("=== duplicate analysis ===");
+let dupGroups = 0;
+for (const [key, arr] of byKey) {
+  if (key.startsWith("other:")) continue;
+  if (arr.length < 2) continue;
+  dupGroups++;
+  console.log(`DUP ${key} count=${arr.length}`);
+  for (const t of arr) {
+    console.log(`  ${t.id} imp=${t.public_metrics?.impression_count ?? "?"} ${t.created_at} ${(t.text.split("\n")[0] ?? "").slice(0, 80)}`);
+  }
+}
+if (!dupGroups) console.log("NO_VERSION_DUPLICATES among listed tweets");
+
+# verify previously deleted ids are gone
+const deleted = ["2097850006208233749", "2097783019860074831", "2097821154090390002"];
+console.log("=== deleted-id check ===");
+for (const id of deleted) {
+  const hit = rows.find((t) => t.id === id);
+  console.log(id, hit ? "STILL_PRESENT" : "GONE");
 }
