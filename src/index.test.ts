@@ -217,6 +217,8 @@ describe("release content", () => {
     expect(isNotable("- Scroll history after sending a prompt no longer jumps the viewport unexpectedly")).toBe(false);
     expect(isNotable("- 发送提示后滚动位置不再意外跳动")).toBe(false);
     expect(isNotable("- Esc no longer cancels a running turn and instead reminds you to use Ctrl+C")).toBe(true);
+    expect(isNotable("- Added notifications when background agents exit unexpectedly")).toBe(true);
+    expect(isNotable("- Added automatic recovery for sessions that unexpectedly disconnect")).toBe(true);
     expect(() => isNotable("")).toThrow("Empty release notes");
   });
 

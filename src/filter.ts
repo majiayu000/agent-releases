@@ -2,8 +2,8 @@
 const EXCLUDED_HEADING = /^(?:bug\s*fix(?:es)?|fix(?:ed|es)?|contributors|documentation)\b/i;
 const FIX_PREFIX = /^(?:fix(?:ed|es)?|bug\s*fix(?:es)?|修复)\b/i;
 const META_BULLET = /^(?:full changelog|changelog:|#\d+\b|\[?#\d+\]?\()/i;
-/** Regression phrasing from real Grok notes. Do not treat every "no longer" as a bugfix. */
-const REGRESSION = /\bunexpectedly\b|\bno longer\s+(?:jumps?|fail(?:s|ed|ing)?|crash(?:es|ed|ing)?|hangs?|freez(?:e|es|ed|ing))\b|不再意外跳动|意外跳动/i;
+/** Regression phrasing from real Grok notes. Do not treat every "no longer" or "unexpectedly" as a bugfix. */
+const REGRESSION = /\bno longer\s+(?:jumps?|fail(?:s|ed|ing)?|crash(?:es|ed|ing)?|hangs?|freez(?:e|es|ed|ing))\b|不再意外跳动/i;
 
 function featureProse(bullet: string): string {
   const withoutTag = bullet.replace(/^(?:\[[^\]]+\]\s*)+/, "");
