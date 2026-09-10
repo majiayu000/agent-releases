@@ -12,3 +12,8 @@ node_modules/
 .state/
 .publication-state/
 .code/
+
+.wrangler/
+.worker-build/
+.dev.vars
+.dev.vars.*

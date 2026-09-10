@@ -2,6 +2,10 @@
 
 为 [@agentreleases](https://x.com/agentreleases) 整理 Claude Code、Codex CLI 和 Grok Build 的中文版本更新。非官方，与 Anthropic / OpenAI / xAI 无关。
 
+## Cloudflare 分支
+
+本分支提供 Workers + D1 发布实现，部署与切换见 [Cloudflare 操作说明](docs/cloudflare.md)。默认只预览，尚未切换线上发布器。下文保留当前 GitHub Actions 的操作方式，切换时必须停用其定时任务，避免两个发布器同时运行。
+
 ## 发布流程
 
 定时任务每小时第 17 分钟请求运行；GitHub Actions 可能延迟，不承诺每小时准点送达。手动运行默认只预览。
