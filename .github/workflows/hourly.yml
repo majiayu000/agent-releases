@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   prepare:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && github.ref || 'main' }}
           persist-credentials: false
       - id: base
         run: |
