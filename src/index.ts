@@ -5,7 +5,12 @@ import type { Product, Release } from "./sources/types.ts";
 import { readState, writeState, listChangedStateFiles } from "./state.ts";
 import { appendLedger, hasPostedLive } from "./ledger.ts";
 import { isNotable } from "./filter.ts";
-import { draftChinesePost } from "./draft.ts";
+import {
+  draftChinesePost,
+  draftChinesePostRuleBased,
+  draftEnglishOriginalPost,
+  NO_USABLE_CHINESE_DRAFT,
+} from "./draft.ts";
 import { openDraftIssue } from "./github-issue.ts";
 import { postTweet } from "./twitter.ts";
 import { writeFileSync } from "fs";
@@ -65,7 +70,46 @@ async function handleOne(product: Product, release: Release): Promise<boolean> {
   }
 
   // Order: draft → post/issue → append ledger → writeState
-  const text = await draftChinesePost(release);
+  let text: string;
+  try {
+    text = await draftChinesePost(release);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!msg.includes(NO_USABLE_CHINESE_DRAFT)) throw e;
+
+    // No safe Chinese for live X: open issue with rule attempt + english notes,
+    // advance state so hourly does not retry-spam, NEVER postTweet.
+    let ruleAttempt = "";
+    try {
+      ruleAttempt = draftChinesePostRuleBased(release);
+    } catch {
+      ruleAttempt = "(rule-based also threw)";
+    }
+    const englishNotes = draftEnglishOriginalPost(release);
+    const issueBody =
+      `⚠️ Live skip — ${NO_USABLE_CHINESE_DRAFT}\n` +
+      `${msg}\n\n` +
+      `--- rule-based attempt ---\n${ruleAttempt}\n\n` +
+      `--- english notes (not posted to X) ---\n${englishNotes}\n`;
+
+    console.error(
+      `[draft-skip] ${product} ${release.version}: ${msg}; opening issue, advancing state, NO tweet`,
+    );
+    const issueUrl = await openDraftIssue(release, issueBody);
+    console.error(`[draft-skip] issue: ${issueUrl}`);
+
+    appendLedger({
+      ts: new Date().toISOString(),
+      product,
+      version: release.version,
+      issueUrl,
+      dryRun: DRY_RUN,
+      // no tweetId — intentionally did not post to X
+    });
+    writeState(product, release.version);
+    return true;
+  }
+
   console.log(`\n=== draft ${product} ${release.version} ===\n${text}\n`);
 
   let tweetId: string | undefined;

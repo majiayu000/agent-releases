@@ -10,6 +10,14 @@ const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/anthropic";
 /** Default BigModel draft model (override with DRAFT_MODEL). */
 export const DEFAULT_MODEL = "glm-5.3-flash";
 const TIMEOUT_MS = Number(process.env.DRAFT_TIMEOUT_MS) || 60_000;
+/** Room for GLM forced-thinking + short post (override with DRAFT_MAX_TOKENS). */
+const MAX_TOKENS = Number(process.env.DRAFT_MAX_TOKENS) || 2048;
+/**
+ * GLM-5.3 / glm-5.3-flash always think; "disabled" → HTTP 400.
+ * Use low effort so thinking does not eat the whole max_tokens budget.
+ */
+const REASONING_EFFORT =
+  (process.env.DRAFT_REASONING_EFFORT?.trim() || "low") as string;
 
 export function isLlmDraftConfigured(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
@@ -53,20 +61,77 @@ ${release.url}
 ${notesBlock}`;
 }
 
-type AnthropicContentBlock = { type?: string; text?: string };
+type AnthropicContentBlock = {
+  type?: string;
+  text?: string;
+  /** Anthropic / GLM thinking block body (not the post). */
+  thinking?: string;
+  /** Some gateways nest text under content. */
+  content?: string;
+};
+
 type AnthropicMessageResponse = {
   content?: AnthropicContentBlock[] | string;
+  stop_reason?: string;
   error?: { message?: string; type?: string };
 };
 
+/** Log block types + lengths only (no API key, no thinking/post body). */
+function logContentShape(data: AnthropicMessageResponse): void {
+  const stop = data.stop_reason ?? "?";
+  if (typeof data.content === "string") {
+    console.log(
+      `[draft-llm] content=string len=${data.content.length} stop_reason=${stop}`,
+    );
+    return;
+  }
+  if (!Array.isArray(data.content)) {
+    console.log(
+      `[draft-llm] content=${data.content === null || data.content === undefined ? String(data.content) : typeof data.content} stop_reason=${stop}`,
+    );
+    return;
+  }
+  const summary = data.content.map((b, i) => {
+    const t = b?.type ?? "(no-type)";
+    const textLen =
+      typeof b?.text === "string"
+        ? b.text.length
+        : typeof b?.content === "string"
+          ? b.content.length
+          : 0;
+    const thinkLen = typeof b?.thinking === "string" ? b.thinking.length : 0;
+    return `#${i}:${t}/text=${textLen}/thinking=${thinkLen}`;
+  });
+  console.log(
+    `[draft-llm] blocks=${data.content.length} [${summary.join(", ")}] stop_reason=${stop}`,
+  );
+}
+
+/**
+ * Extract assistant *post* text. Ignore thinking/reasoning blocks — GLM-5.3-flash
+ * often returns thinking-first; if max_tokens is tight, text can be empty.
+ */
 function extractText(data: AnthropicMessageResponse): string {
   if (typeof data.content === "string") return data.content.trim();
   if (!Array.isArray(data.content)) return "";
-  return data.content
-    .filter((b) => (b.type === "text" || !b.type) && typeof b.text === "string")
-    .map((b) => b.text!)
-    .join("")
-    .trim();
+
+  const parts: string[] = [];
+  for (const b of data.content) {
+    if (!b || typeof b !== "object") continue;
+    const t = b.type ?? "";
+    // Never treat thinking / redacted_thinking as the tweet body.
+    if (t === "thinking" || t === "redacted_thinking" || t === "reasoning") {
+      continue;
+    }
+    if (typeof b.text === "string" && b.text.trim()) {
+      // Prefer explicit text blocks; also accept untyped blocks with .text
+      if (t === "text" || t === "" || !t) parts.push(b.text);
+      else if (t !== "tool_use" && t !== "tool_result") parts.push(b.text);
+    } else if (typeof b.content === "string" && b.content.trim() && t === "text") {
+      parts.push(b.content);
+    }
+  }
+  return parts.join("").trim();
 }
 
 /**
@@ -78,7 +143,9 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
 
   const model = draftModelId();
   const url = `${baseUrl()}/v1/messages`;
-  console.log(`[draft-llm] model=${model} timeoutMs=${TIMEOUT_MS} url=${url}`);
+  console.log(
+    `[draft-llm] model=${model} timeoutMs=${TIMEOUT_MS} max_tokens=${MAX_TOKENS} reasoning_effort=${REASONING_EFFORT} url=${url}`,
+  );
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -94,8 +161,11 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1024,
+        max_tokens: MAX_TOKENS,
         temperature: 0.3,
+        // GLM-5.3-flash: thinking always on; low effort leaves budget for text.
+        thinking: { type: "enabled" },
+        reasoning_effort: REASONING_EFFORT,
         messages: [{ role: "user", content: buildPrompt(release) }],
       }),
       signal: controller.signal,
@@ -114,8 +184,13 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
       throw new Error(`HTTP ${res.status}: ${msg}`);
     }
 
+    logContentShape(data);
     const text = extractText(data);
-    if (!text) throw new Error("empty content");
+    if (!text) {
+      throw new Error(
+        `empty content (stop_reason=${data.stop_reason ?? "?"}; thinking may have consumed max_tokens)`,
+      );
+    }
     return text.replace(/\r\n/g, "\n").trim();
   } finally {
     clearTimeout(timer);

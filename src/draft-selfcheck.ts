@@ -1,6 +1,6 @@
 /**
- * Tiny self-check: rule-based Chinese (local only) + English-original live
- * fallback; LLM path skipped when no API key.
+ * Tiny self-check: rule-based Chinese is the live fallback (never English on X);
+ * LLM path skipped when no API key. English-original kept for selfcheck only.
  * Also covers weighted X length + grok multi-version parse + ledger helpers.
  *
  * Run: bun run selfcheck:draft
@@ -10,6 +10,7 @@ import {
   draftChinesePostRuleBased,
   draftEnglishOriginalPost,
   maxLatinRunOutsideBackticks,
+  NO_USABLE_CHINESE_DRAFT,
 } from "./draft.ts";
 import { isLlmDraftConfigured, DEFAULT_MODEL } from "./draft-llm.ts";
 import { weightedXLength, trimPostToWeightedLimit, X_WEIGHTED_LIMIT } from "./x-length.ts";
@@ -196,13 +197,14 @@ async function main() {
   checkGrokParse();
   checkLedgerHelpers();
 
-  // Rule-based Chinese is local/selfcheck only (not live X fallback).
+  // Rule-based Chinese is the live X fallback (not English).
   const rulePost = draftChinesePostRuleBased(release);
   assertRulePost(rulePost, "rule-based draft");
   console.log("OK: draftChinesePostRuleBased(2.1.265) looks Chinese");
 
+  // English-original: selfcheck-only helper; must NOT be live fallback.
   const enPost = draftEnglishOriginalPost(release);
-  console.log("--- english-original draft ---\n" + enPost + "\n--- end ---");
+  console.log("--- english-original draft (selfcheck only) ---\n" + enPost + "\n--- end ---");
   if (!enPost.includes("【Claude】Claude Code 2.1.265 发布")) {
     console.error("FAIL: english-original missing header");
     process.exit(1);
@@ -224,19 +226,33 @@ async function main() {
     console.error("FAIL: english-original weighted length", weightedXLength(enPost));
     process.exit(1);
   }
-  console.log("OK: draftEnglishOriginalPost(2.1.265)");
+  console.log("OK: draftEnglishOriginalPost(2.1.265) selfcheck-only helper");
 
-  // Without key, live entry uses english-original (not rule-based CN).
+  // Without key, live entry uses rule-based Chinese (never english-original).
   if (!isLlmDraftConfigured()) {
     const asyncPost = await draftChinesePost(release);
-    if (asyncPost !== enPost) {
-      console.error("FAIL: no-key draftChinesePost should equal english-original");
+    if (asyncPost !== rulePost) {
+      console.error("FAIL: no-key draftChinesePost should equal rule-based Chinese");
       process.exit(1);
     }
-    console.log("OK: LLM skipped (no ANTHROPIC_API_KEY); async == english-original");
+    if (asyncPost === enPost) {
+      console.error("FAIL: draftChinesePost must NOT equal english-original");
+      process.exit(1);
+    }
+    if (maxLatinRunOutsideBackticks(asyncPost) > 40) {
+      console.error("FAIL: live draft still has long Latin run");
+      process.exit(1);
+    }
+    console.log("OK: LLM skipped (no ANTHROPIC_API_KEY); async == rule-based (not english)");
   } else {
     console.log("SKIP: ANTHROPIC_API_KEY set — not calling live LLM in selfcheck");
   }
+
+  if (!NO_USABLE_CHINESE_DRAFT.includes("[draft] no usable Chinese draft")) {
+    console.error("FAIL: NO_USABLE_CHINESE_DRAFT constant drifted");
+    process.exit(1);
+  }
+  console.log("OK: NO_USABLE_CHINESE_DRAFT constant present");
 }
 
 main().catch((e) => {

@@ -4,6 +4,9 @@ import { pickBullets } from "./filter.ts";
 import { isLlmDraftConfigured, draftChinesePostWithLlm } from "./draft-llm.ts";
 import { trimPostToWeightedLimit, weightedXLength, X_WEIGHTED_LIMIT } from "./x-length.ts";
 
+/** Thrown when no Chinese draft is safe to post live (index advances state, no X). */
+export const NO_USABLE_CHINESE_DRAFT = "[draft] no usable Chinese draft";
+
 /** Leading changelog verbs → Chinese. */
 const LEADING_VERBS: [RegExp, string][] = [
   [/^Added support for\b/i, "支持"],
@@ -262,7 +265,7 @@ function isFixedOnlyBullet(s: string): boolean {
   return /^(修复|Fixed|Fix)\b/i.test(t) || /^\[VS Code\]\s*修复\b/.test(t);
 }
 
-/** Rule-based Chinese draft (no LLM). */
+/** Rule-based Chinese draft (no LLM). Live X fallback when LLM unavailable/bad. */
 export function draftChinesePostRuleBased(release: Release): string {
   const tag = PRODUCT_TAG[release.product];
   const name = PRODUCT_NAME[release.product];
@@ -295,8 +298,9 @@ export function draftChinesePostRuleBased(release: Release): string {
 
 
 /**
- * Structured short English original post — live X fallback when LLM Chinese fails.
- * Header stays Chinese product/version line; bullets stay English from notes.
+ * Structured short English original post — **selfcheck / issue notes only**.
+ * @deprecated Not used by the live X path. Live falls back to rule-based Chinese
+ * or throws {@link NO_USABLE_CHINESE_DRAFT}; never posts English to X.
  */
 export function draftEnglishOriginalPost(release: Release): string {
   const tag = PRODUCT_TAG[release.product];
@@ -335,35 +339,49 @@ function validateLlmDraft(text: string, release: Release): string | null {
   return null;
 }
 
+function assertUsableChinese(post: string, via: string): string {
+  const latin = maxLatinRunOutsideBackticks(post);
+  if (latin > 40) {
+    throw new Error(
+      `${NO_USABLE_CHINESE_DRAFT} (${via}: maxLatinRunOutsideBackticks=${latin})`,
+    );
+  }
+  return post;
+}
+
 /**
  * Prefer LLM Chinese draft when ANTHROPIC_API_KEY is set;
- * on any failure/timeout/bad shape, fall back to English original (not rule-based CN).
- * Rule-based Chinese remains available via draftChinesePostRuleBased for selfcheck.
+ * on any failure/timeout/bad shape / no key → rule-based Chinese.
+ * NEVER falls back to English for live X. If rule-based still fails
+ * Chinese quality, throws {@link NO_USABLE_CHINESE_DRAFT}.
  */
 export async function draftChinesePost(release: Release): Promise<string> {
-  if (!isLlmDraftConfigured()) {
-    console.warn("[draft-llm] fallback: english-original (no API key)");
-    return draftEnglishOriginalPost(release);
-  }
-  try {
-    const llm = await draftChinesePostWithLlm(release);
-    const reason = validateLlmDraft(llm, release);
-    if (reason) {
-      console.warn(`[draft-llm] fallback: english-original (${reason})`);
-      return draftEnglishOriginalPost(release);
+  if (isLlmDraftConfigured()) {
+    try {
+      const llm = await draftChinesePostWithLlm(release);
+      const reason = validateLlmDraft(llm, release);
+      if (reason) {
+        console.warn(`[draft-llm] fallback: rule-based (${reason})`);
+      } else {
+        const trimmed = trimPostToWeightedLimit(llm, X_WEIGHTED_LIMIT);
+        if (trimmed !== llm) {
+          console.log(
+            `[draft-llm] trimmed weighted length ${weightedXLength(llm)} -> ${weightedXLength(trimmed)}`,
+          );
+        }
+        return assertUsableChinese(trimmed, "llm");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes(NO_USABLE_CHINESE_DRAFT)) throw e;
+      console.warn(`[draft-llm] fallback: rule-based ${msg}`);
     }
-    const trimmed = trimPostToWeightedLimit(llm, X_WEIGHTED_LIMIT);
-    if (trimmed !== llm) {
-      console.log(
-        `[draft-llm] trimmed weighted length ${weightedXLength(llm)} -> ${weightedXLength(trimmed)}`,
-      );
-    }
-    return trimmed;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.warn(`[draft-llm] fallback: english-original ${msg}`);
-    return draftEnglishOriginalPost(release);
+  } else {
+    console.warn("[draft-llm] fallback: rule-based (no API key)");
   }
+
+  const rule = draftChinesePostRuleBased(release);
+  return assertUsableChinese(rule, "rule-based");
 }
 
 /** Exported for self-check / fixtures. */
