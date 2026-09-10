@@ -27,7 +27,7 @@ function baseUrl(): string {
 function buildPrompt(release: Release): string {
   const tag = PRODUCT_TAG[release.product];
   const name = PRODUCT_NAME[release.product];
-  const header = `${tag}${name} ${release.displayVersion} 出了（非官方）`;
+  const header = `${tag}${name} ${release.displayVersion} 发布`;
   const bullets = pickBullets(release.notes, 5);
   const notesBlock =
     bullets.length > 0

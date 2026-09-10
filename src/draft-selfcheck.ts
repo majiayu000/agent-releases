@@ -50,7 +50,7 @@ function assertRulePost(post: string, label: string) {
     console.error("FAIL: leftover English fragments:", hits);
     process.exit(1);
   }
-  if (!post.includes("【Claude】Claude Code 2.1.265 出了（非官方）")) {
+  if (!post.includes("【Claude】Claude Code 2.1.265 发布")) {
     console.error("FAIL: missing expected header");
     process.exit(1);
   }
@@ -97,7 +97,7 @@ function checkWeightedLength() {
   }
 
   const long =
-    "【Claude】Claude Code 9.9.9 出了（非官方）\n\n" +
+    "【Claude】Claude Code 9.9.9 发布\n\n" +
     "• " +
     "测".repeat(200) +
     "\n• " +

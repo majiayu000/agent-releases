@@ -266,7 +266,7 @@ function isFixedOnlyBullet(s: string): boolean {
 export function draftChinesePostRuleBased(release: Release): string {
   const tag = PRODUCT_TAG[release.product];
   const name = PRODUCT_NAME[release.product];
-  const header = `${tag}${name} ${release.displayVersion} 出了（非官方）`;
+  const header = `${tag}${name} ${release.displayVersion} 发布`;
 
   let raw = pickBullets(release.notes, 3);
   if (raw.length === 0) {
@@ -286,7 +286,7 @@ export function draftChinesePostRuleBased(release: Release): string {
   }
 
   if (bullets.length === 0) {
-    bullets = ["详见发版说明（非官方整理）"];
+    bullets = ["详见发版说明"];
   }
 
   const post = `${header}\n\n${bullets.map((b) => `• ${b}`).join("\n")}\n\n${release.url}`;
