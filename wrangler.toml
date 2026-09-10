@@ -1,0 +1,21 @@
+name = "agent-releases"
+main = "src/worker.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[triggers]
+crons = ["17 * * * *"]
+
+[vars]
+DRY_RUN = "false"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agent-releases"
+database_id = "44d46d28-655b-433e-9822-abdd171ec9b0"
+migrations_dir = "migrations"
