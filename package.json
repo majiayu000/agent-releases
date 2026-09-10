@@ -4,13 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "bun run src/index.ts preview",
+    "start": "bun run dev:cloudflare",
     "check": "tsc --noEmit && bun run test && bun run selfcheck:draft && bun run check:cloudflare",
     "test": "bun test src",
     "selfcheck:draft": "bun run src/draft-selfcheck.ts",
     "smoke:llm": "bun run src/smoke-llm.ts",
     "check:cloudflare": "wrangler deploy --dry-run --outdir .worker-build && node --test tests/cloudflare.test.mjs",
-    "dev:cloudflare": "wrangler dev --test-scheduled",
+    "dev:cloudflare": "wrangler dev --test-scheduled --var DRY_RUN:true",
     "export:d1": "bun run scripts/export-d1.ts"
   },
   "dependencies": {

@@ -9,7 +9,7 @@ preview_urls = false
 crons = ["17 * * * *"]
 
 [vars]
-DRY_RUN = "true"
+DRY_RUN = "false"
 
 [observability]
 enabled = true
@@ -17,6 +17,5 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "agent-releases"
-# Replace with the ID returned by `wrangler d1 create agent-releases` before deployment.
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "44d46d28-655b-433e-9822-abdd171ec9b0"
 migrations_dir = "migrations"

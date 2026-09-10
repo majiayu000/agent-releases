@@ -1,6 +1,6 @@
 # Cloudflare 发布器
 
-一个定时 Worker + 一个 D1 数据库，复用现有版本解析、过滤、中文生成和 X OAuth 客户端。没有公开 HTTP 发帖接口、队列或自动重发。`wrangler.toml` 默认 `DRY_RUN="true"`；本分支不自动部署、不改变当前 Actions。
+一个定时 Worker + 一个 D1 数据库，复用现有版本解析、过滤、中文生成和 X OAuth 客户端。没有公开 HTTP 发帖接口、队列或自动重发。当前 `wrangler.toml` 为正式模式 `DRY_RUN="false"`，2026-09-10 已部署到账号中的 `agent-releases` Worker。D1 ID 为 `44d46d28-655b-433e-9822-abdd171ec9b0`，旧 hourly 工作流已停用并移除。新环境首次部署必须先设 DRY_RUN=true。
 
 ## 状态与并发
 
@@ -24,18 +24,18 @@ bunx wrangler d1 migrations apply DB --local
 bun run dev:cloudflare
 ```
 
-另一个终端调用 Wrangler 显示的本地地址下的 `/cdn-cgi/local/scheduled` 触发预览。生成草稿需要本地凭据；测试套件使用假凭据和封闭的网络替身，不会调用真实 X 或 LLM。测试使用真正的 workerd 和 D1，覆盖并发、判重、预览、来源/草稿失败、X 失败、回写失败、每日限额和初始化。
+开发命令强制 DRY_RUN=true。另一个终端调用 Wrangler 显示的本地地址下的 `/cdn-cgi/local/scheduled` 触发预览；旧远程开发模式使用 `/__scheduled`。生成草稿需要本地凭据；测试套件使用假凭据和封闭的网络替身，不会调用真实 X 或 LLM。测试使用真正的 workerd 和 D1，覆盖并发、判重、预览、来源/草稿失败、X 失败、回写失败、每日限额和初始化。
 
-## 创建与预览部署（需要另行执行）
+## 新环境创建与预览部署
 
-1. 登录 Cloudflare，执行 `bunx wrangler d1 create agent-releases`，将返回的真实 ID 写入 `wrangler.toml`，替换全零占位值。
+1. 登录 Cloudflare，执行 `bunx wrangler d1 create agent-releases`，将返回的真实 ID 写入 `wrangler.toml`，不要覆盖当前生产数据库。
 2. 执行 `bunx wrangler d1 migrations apply DB --remote` 创建表。
 3. 用 `bunx wrangler secret put NAME` 配置现有凭据：`ANTHROPIC_API_KEY`、`X_API_KEY`、`X_API_SECRET`、`X_ACCESS_TOKEN`、`X_ACCESS_TOKEN_SECRET`。按现有线上值配置 `ANTHROPIC_BASE_URL`、`DRAFT_MODEL`、`DRAFT_MAX_TOKENS`、`DRAFT_TIMEOUT_MS`、`DRAFT_THINKING`，不要在迁移时同时更换模型。GitHub API 可使用只读公共仓库的 `GITHUB_TOKEN`，不需要代码写入权限。
 4. 保持 `DRY_RUN="true"`，执行 `bunx wrangler deploy`。用 `bunx wrangler tail` 查看每小时预览结果。不要把 Secrets 写入仓库或 SQL 文件。
 
-## 切换现有账号
+## 切换记录与步骤
 
-停止旧发布器和人工发帖后才取最终快照；否则两个账本无法互相判重。
+本次已从停用后的旧发布器导入 3 个游标、4 个不同的已发布版本；没有导入预览条目，也没有新增发帖。以下步骤供以后核对迁移记录，切勿对当前数据库重复导入。停止旧发布器和人工发帖后才取最终快照；否则两个账本无法互相判重。
 
 ```sh
 gh workflow disable hourly.yml
