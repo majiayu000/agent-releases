@@ -151,6 +151,26 @@ function rewriteKnownShapes(english: string): string | null {
     }
   }
 
+  // Added `maxEffortLevel` setting (top-level or per model under `modelSettings`): …
+  {
+    const m = e.match(
+      /^Added\s+(`maxEffortLevel`)\s+setting\b[\s\S]*$/i,
+    );
+    if (m) {
+      return `新增 ${m[1]}：顶层或 \`modelSettings\` 按模型限制努力等级上限（Bedrock/Vertex/Foundry 等）`;
+    }
+  }
+
+  // Added `--system-prompt-snapshot off` to render the system prompt fresh …
+  {
+    const m = e.match(
+      /^Added\s+(`--system-prompt-snapshot(?:\s+[^`]+)?`)\s+[\s\S]*$/i,
+    );
+    if (m) {
+      return `新增 ${m[1]}：每次请求重新渲染系统提示，不复用会话记录`;
+    }
+  }
+
   // Improved `--worktree` startup on large repositories …
   if (/^Improved\b/i.test(e) && /worktree/i.test(e) && /parallel|large/i.test(e)) {
     return "改进大型仓库下 `--worktree` 启动：新 worktree 可并行检出（git 2.32+）";

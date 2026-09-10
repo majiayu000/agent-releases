@@ -28,6 +28,13 @@ const NOTES_2_1_265 = `## What's changed
 - Improved \`--worktree\` startup on large repositories: the new worktree is now checked out in parallel (git 2.32+)
 `;
 
+const NOTES_2_1_267 = `## What's changed
+
+- Added \`maxEffortLevel\` setting (top-level or per model under \`modelSettings\`): caps the effort level on every provider, including Bedrock, Vertex and Foundry; users can still pick a lower level
+- Added \`--system-prompt-snapshot off\` to render the system prompt fresh on every request instead of reusing the conversation's recorded prompt (for iterating on prompt text)
+- Fixed Cowork scheduled tasks in the cloud failing at startup for organizations whose managed settings require sandboxing
+`;
+
 const release: Release = {
   product: "claude",
   version: "2.1.265",
@@ -37,23 +44,39 @@ const release: Release = {
   url: "https://github.com/anthropics/claude-code/releases/tag/v2.1.265",
 };
 
-function assertRulePost(post: string, label: string) {
+const release267: Release = {
+  product: "claude",
+  version: "2.1.267",
+  displayVersion: "2.1.267",
+  title: "Claude Code 2.1.267",
+  notes: NOTES_2_1_267,
+  url: "https://github.com/anthropics/claude-code/releases/tag/v2.1.267",
+};
+
+function assertRulePost(
+  post: string,
+  label: string,
+  opts: {
+    header: string;
+    url: string;
+    forbidden: string[];
+  },
+) {
   console.log(`--- ${label} ---\n` + post + "\n--- end ---");
 
-  const forbidden = [
-    "to the telemetry",
-    "pointing",
-    "matching terminal",
-    "folder of plugins",
-    "saved to disk",
-  ];
-  const hits = forbidden.filter((s) => post.toLowerCase().includes(s.toLowerCase()));
+  const hits = opts.forbidden.filter((s) =>
+    post.toLowerCase().includes(s.toLowerCase()),
+  );
   if (hits.length > 0) {
     console.error("FAIL: leftover English fragments:", hits);
     process.exit(1);
   }
-  if (!post.includes("【Claude】Claude Code 2.1.265 发布")) {
+  if (!post.includes(opts.header)) {
     console.error("FAIL: missing expected header");
+    process.exit(1);
+  }
+  if (!post.includes(opts.url)) {
+    console.error("FAIL: missing release URL");
     process.exit(1);
   }
   if (!post.includes("• ")) {
@@ -199,8 +222,41 @@ async function main() {
 
   // Rule-based Chinese is the live X fallback (not English).
   const rulePost = draftChinesePostRuleBased(release);
-  assertRulePost(rulePost, "rule-based draft");
+  assertRulePost(rulePost, "rule-based draft 2.1.265", {
+    header: "【Claude】Claude Code 2.1.265 发布",
+    url: release.url,
+    forbidden: [
+      "to the telemetry",
+      "pointing",
+      "matching terminal",
+      "folder of plugins",
+      "saved to disk",
+    ],
+  });
   console.log("OK: draftChinesePostRuleBased(2.1.265) looks Chinese");
+
+  const rulePost267 = draftChinesePostRuleBased(release267);
+  assertRulePost(rulePost267, "rule-based draft 2.1.267", {
+    header: "【Claude】Claude Code 2.1.267 发布",
+    url: release267.url,
+    forbidden: [
+      "setting (top-level",
+      "caps the effort",
+      "render the system prompt",
+      "reusing the conversation",
+      "every request instead",
+      "iterating on prompt",
+    ],
+  });
+  if (!/`maxEffortLevel`/.test(rulePost267)) {
+    console.error("FAIL: 2.1.267 draft missing maxEffortLevel token");
+    process.exit(1);
+  }
+  if (!/`--system-prompt-snapshot/.test(rulePost267)) {
+    console.error("FAIL: 2.1.267 draft missing --system-prompt-snapshot token");
+    process.exit(1);
+  }
+  console.log("OK: draftChinesePostRuleBased(2.1.267) looks Chinese");
 
   // English-original: selfcheck-only helper; must NOT be live fallback.
   const enPost = draftEnglishOriginalPost(release);
