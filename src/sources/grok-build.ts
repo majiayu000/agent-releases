@@ -134,21 +134,26 @@ export function parseVersionBlocks(html: string): Release[] {
 }
 
 function extractNotes(chunk: string): string {
-  const items = [...chunk.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)]
-    .map((m) =>
-      m[1]!
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/\s+/g, " ")
-        .trim(),
-    )
-    .filter((t) => t.length > 10)
-    .slice(0, 20);
-
-  if (items.length > 0) return items.map((t) => `- ${t}`).join("\n");
+  // Keep section headings in document order so Bug Fixes remains excluded.
+  const lines: string[] = [];
+  let items = 0;
+  for (const match of chunk.matchAll(/<(h[1-6]|li)\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
+    const text = match[2]!
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, " ")
+      .trim();
+    if (match[1]!.toLowerCase() !== "li") {
+      lines.push(`## ${text}`);
+    } else if (text) {
+      lines.push(`- ${text}`);
+      if (++items === 20) break;
+    }
+  }
+  if (items > 0) return lines.join("\n");
 
   const md = [...chunk.matchAll(/^[-*]\s+(.+)$/gm)]
     .map((m) => `- ${m[1]!.trim()}`)

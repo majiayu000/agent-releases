@@ -10,6 +10,7 @@ import { draftChinesePost, validateChinesePost } from "./draft.ts";
 import { weightedXLength } from "./x-length.ts";
 import { fetchClaudeSince } from "./sources/claude.ts";
 import { fetchCodexSince } from "./sources/codex.ts";
+import { parseVersionBlocks } from "./sources/grok-build.ts";
 import type { Product, Release } from "./sources/types.ts";
 
 const root = process.cwd();
@@ -159,6 +160,15 @@ describe("publication recovery", () => {
 });
 
 describe("release content", () => {
+  test("Grok HTML preserves sections when deciding whether to publish", () => {
+    const parse = (body: string) => parseVersionBlocks(`<h2>Grok Build 1.0.26</h2>${body}<h2>Grok Build 1.0.25</h2><ul><li>Added custom command support</li></ul>`)[0]!;
+    const fixes = parse("<h3><span>Bug Fixes</span></h3><ul><li>Terminal crashes when reopening a session</li></ul>");
+    expect(isNotable(fixes.notes)).toBe(false);
+    const mixed = parse("<h3>Bug Fixes</h3><ul><li>Terminal crashes when reopening a session</li></ul><h3>Features</h3><ul><li>Added custom command support</li></ul>");
+    expect(pickBullets(mixed.notes)).toEqual(["Added custom command support"]);
+    expect(isNotable(parse("<ul><li>Added custom command support</li></ul>").notes)).toBe(true);
+  });
+
   test("Fixed-only hints cannot masquerade as features", () => {
     expect(isNotable("- Fixed a crash in support for custom tools")).toBe(false);
     expect(isNotable("## Bug Fixes\n- Added a missing null check")).toBe(false);
