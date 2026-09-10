@@ -144,13 +144,15 @@ describe("publication recovery", () => {
     expect(() => readState("claude")).toThrow("Empty state");
   });
 
-  test("a rerun cannot re-enter the live CLI from an old reservation artifact", () => {
-    const result = Bun.spawnSync(["bun", join(root, "src/index.ts"), "publish"], {
-      cwd: dir,
-      env: { ...process.env, GITHUB_ACTIONS: "true", GITHUB_RUN_ATTEMPT: "2" },
-    });
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr.toString()).toContain("Never rerun a publication job");
+  test("live CLI modes cannot bypass D1 even from a fresh Actions attempt", () => {
+    for (const mode of ["prepare", "publish"] as const) {
+      const result = Bun.spawnSync(["bun", join(root, "src/index.ts"), mode], {
+        cwd: dir,
+        env: { ...process.env, GITHUB_ACTIONS: "true", GITHUB_RUN_ATTEMPT: "1", GITHUB_RUN_ID: "999" },
+      });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr.toString()).toContain("This CLI path bypasses D1");
+    }
   });
 
   test("preview seed writes no state", async () => {

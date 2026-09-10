@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fetchLatestClaude, fetchClaudeSince } from "./sources/claude.ts";
 import { fetchLatestCodex, fetchCodexSince } from "./sources/codex.ts";
 import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.ts";
@@ -25,7 +25,7 @@ export type Plan = {
   posts: { release: Release; text: string }[];
 };
 
-/** Preparation has no X side effects. Only the workflow can persist reservations. */
+/** Preparation has no X side effects. Live CLI entry is closed; tests still call this with a file ledger. */
 export async function prepare(
   live: boolean,
   runId: string,
@@ -113,18 +113,12 @@ if (import.meta.main) {
   try {
     const mode = process.argv[2] ?? "preview";
     if (!["preview", "prepare", "publish"].includes(mode)) throw new Error(`Unknown mode: ${mode}`);
-    if (mode !== "preview" && (process.env.GITHUB_ACTIONS !== "true" || process.env.GITHUB_RUN_ATTEMPT !== "1")) {
-      throw new Error("Live phases require a fresh Actions run. Never rerun a publication job; reconcile first.");
+    if (mode !== "preview") {
+      throw new Error("Live publication is the Cloudflare Worker. This CLI path bypasses D1.");
     }
-    if (mode === "publish") {
-      const plan = JSON.parse(readFileSync(".run/plan.json", "utf8")) as Plan;
-      if (plan.runId !== process.env.GITHUB_RUN_ID) throw new Error("Publication plan belongs to another run");
-      await publish(plan);
-    } else {
-      const plan = await prepare(mode === "prepare", process.env.GITHUB_RUN_ID ?? "local");
-      mkdirSync(".run", { recursive: true });
-      writeFileSync(".run/plan.json", JSON.stringify(plan, null, 2) + "\n");
-    }
+    const plan = await prepare(false, process.env.GITHUB_RUN_ID ?? "local");
+    mkdirSync(".run", { recursive: true });
+    writeFileSync(".run/plan.json", JSON.stringify(plan, null, 2) + "\n");
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
