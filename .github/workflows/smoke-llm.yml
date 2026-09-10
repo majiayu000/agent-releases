@@ -20,6 +20,6 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
           DRAFT_MODEL: ${{ secrets.DRAFT_MODEL }}
-          DRAFT_TIMEOUT_MS: "60000"
-          DRAFT_MAX_TOKENS: "2048"
+          DRAFT_TIMEOUT_MS: "120000"
+          DRAFT_MAX_TOKENS: "32768"
         run: bun run src/smoke-llm.ts

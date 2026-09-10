@@ -50,6 +50,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
           DRAFT_MODEL: ${{ secrets.DRAFT_MODEL }}
+          DRAFT_MAX_TOKENS: ${{ secrets.DRAFT_MAX_TOKENS }}
+          DRAFT_TIMEOUT_MS: ${{ secrets.DRAFT_TIMEOUT_MS }}
+          DRAFT_THINKING: ${{ secrets.DRAFT_THINKING }}
         run: bun run start
 
       # Persist state even when one product fails (e.g. grok parse), so

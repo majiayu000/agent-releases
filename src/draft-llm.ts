@@ -9,9 +9,9 @@ import { pickBullets } from "./filter.ts";
 const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/anthropic";
 /** Default BigModel draft model (override with DRAFT_MODEL). */
 export const DEFAULT_MODEL = "glm-5.3-flash";
-const TIMEOUT_MS = Number(process.env.DRAFT_TIMEOUT_MS) || 60_000;
-/** Room for GLM forced-thinking + short post (override with DRAFT_MAX_TOKENS). */
-const MAX_TOKENS = Number(process.env.DRAFT_MAX_TOKENS) || 8192;
+const TIMEOUT_MS = Number(process.env.DRAFT_TIMEOUT_MS) || 120_000;
+/** API requires max_tokens; use a high ceiling (override with DRAFT_MAX_TOKENS). */
+const MAX_TOKENS = Number(process.env.DRAFT_MAX_TOKENS) || 32_768;
 /**
  * GLM-5.3 / glm-5.3-flash always think; "disabled" → HTTP 400.
  * Use low effort so thinking does not eat the whole max_tokens budget.
