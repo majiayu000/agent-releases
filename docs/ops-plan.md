@@ -67,7 +67,7 @@ Not affiliated with Anthropic / OpenAI / xAI
 ## 管道备忘
 - Secrets：`X_API_KEY` / `X_API_SECRET` / `X_ACCESS_TOKEN` / `X_ACCESS_TOKEN_SECRET`
 - 草稿模型：`DRAFT_MODEL=glm-5.3-flash`（BigModel Anthropic 网关）；超时默认 120s；失败停发，不使用规则替换兜底
-- 状态：`.state/last_posted_*.txt` + 追加式 `.state/posted.jsonl`；先持久化意图再发帖，未决意图必须核对，不点击 Re-run jobs
+- 状态：`publication-state` 分支中的 `.state/last_posted_*.txt` + 追加式 `.state/posted.jsonl`；先持久化意图再发帖，未决意图必须核对，不点击 Re-run jobs
 - 手动只预览：Actions → hourly → `dry_run=true`；日志/artifact 保存草稿，不创建 Issue，不推进状态
 - 删帖：workflow `delete X post` + tweet id
 - 源：Claude GitHub/CHANGELOG；Codex rust releases；Grok Build changelog；Grok Bot 未接

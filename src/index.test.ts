@@ -266,13 +266,14 @@ describe("durable Git checkpoint", () => {
     return result.stdout.toString().trim();
   }
   function setup() {
-    git("init", "-b", "main");
+    git("init", "-b", "publication-state");
     git("config", "user.name", "Checkpoint Test");
     git("config", "user.email", "checkpoint@example.invalid");
     git("add", ".state");
     git("commit", "-m", "initial state");
     git("init", "--bare", "origin.git");
     git("remote", "add", "origin", join(dir, "origin.git"));
+    git("push", "origin", "HEAD:publication-state");
     git("push", "origin", "HEAD:main");
     mkdirSync(".incoming/.run", { recursive: true });
     cpSync(".state", ".incoming/.state", { recursive: true });
@@ -284,12 +285,13 @@ describe("durable Git checkpoint", () => {
   test("reservation reaches remote before the next phase; result uses its exact baseline", () => {
     setup();
     expect(checkpoint().exitCode).toBe(0);
-    expect(git("--git-dir=origin.git", "show", "main:.state/posted.jsonl")).toContain("待发布正文");
+    expect(git("--git-dir=origin.git", "show", "publication-state:.state/posted.jsonl")).toContain("待发布正文");
     expect(readFileSync(".incoming/.run/base-tree", "utf8").trim()).toBe(git("rev-parse", "HEAD:.state"));
     const reserved = readFileSync(".incoming/.state/posted.jsonl", "utf8");
     writeFileSync(".incoming/.state/posted.jsonl", reserved + JSON.stringify({ ts: now.toISOString(), product: "claude", version: "2.0.0", dryRun: false, tweetId: "123" }) + "\n");
     expect(checkpoint().exitCode).toBe(0);
-    expect(git("--git-dir=origin.git", "show", "main:.state/posted.jsonl")).toContain('"tweetId":"123"');
+    expect(git("--git-dir=origin.git", "show", "publication-state:.state/posted.jsonl")).toContain('"tweetId":"123"');
+    expect(git("--git-dir=origin.git", "show", "main:.state/posted.jsonl")).toBe("");
   });
 
   test("changed state is not overwritten or rebased", () => {
@@ -308,6 +310,6 @@ describe("durable Git checkpoint", () => {
     setup();
     git("remote", "set-url", "origin", join(dir, "missing-origin.git"));
     expect(checkpoint().exitCode).not.toBe(0);
-    expect(git("--git-dir=origin.git", "show", "main:.state/posted.jsonl")).toBe("");
+    expect(git("--git-dir=origin.git", "show", "publication-state:.state/posted.jsonl")).toBe("");
   });
 });

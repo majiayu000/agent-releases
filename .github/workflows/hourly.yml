@@ -31,10 +31,16 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && github.ref || 'main' }}
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: publication-state
+          path: .publication-state
+          persist-credentials: false
       - id: base
         run: |
           mkdir -p .run
-          git rev-parse HEAD:.state > .run/base-tree
+          cp -R .publication-state/.state .state
+          git -C .publication-state rev-parse HEAD:.state > .run/base-tree
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: oven-sh/setup-bun@v2
         with:
@@ -75,13 +81,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: publication-state
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          path: .code
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: prepared
           path: .incoming
       - name: Persist intent before any X request
-        run: bash scripts/commit-state.sh
+        run: bash .code/scripts/commit-state.sh
       - uses: actions/upload-artifact@v4
         with:
           name: reserved
@@ -128,7 +139,7 @@ jobs:
             .run/
 
   persist-results:
-    needs: publish
+    needs: [prepare, publish]
     if: ${{ !cancelled() && needs.publish.outputs.result != '' }}
     runs-on: ubuntu-latest
     permissions:
@@ -136,10 +147,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: publication-state
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          path: .code
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: results
           path: .incoming
       - name: Persist successes even if another post failed
-        run: bash scripts/commit-state.sh
+        run: bash .code/scripts/commit-state.sh
