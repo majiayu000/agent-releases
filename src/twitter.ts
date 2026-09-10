@@ -1,6 +1,8 @@
-import { TwitterApi } from "twitter-api-v2";
+import { TwitterApi, type TweetV2PostTweetResult } from "twitter-api-v2";
 
-export async function postTweet(text: string): Promise<string> {
+const X_REQUEST_TIMEOUT_MS = 30_000;
+
+export function assertXCredentials(): void {
   const appKey = process.env.X_API_KEY;
   const appSecret = process.env.X_API_SECRET;
   const accessToken = process.env.X_ACCESS_TOKEN;
@@ -8,6 +10,14 @@ export async function postTweet(text: string): Promise<string> {
   if (!appKey || !appSecret || !accessToken || !accessSecret) {
     throw new Error("Missing X OAuth 1.0a secrets");
   }
+}
+
+export async function postTweet(text: string): Promise<string> {
+  assertXCredentials();
+  const appKey = process.env.X_API_KEY!;
+  const appSecret = process.env.X_API_SECRET!;
+  const accessToken = process.env.X_ACCESS_TOKEN!;
+  const accessSecret = process.env.X_ACCESS_TOKEN_SECRET!;
 
   const client = new TwitterApi({
     appKey,
@@ -15,6 +25,7 @@ export async function postTweet(text: string): Promise<string> {
     accessToken,
     accessSecret,
   });
-  const { data } = await client.v2.tweet(text);
-  return data.id;
+  // SDK request timeout. A timeout is an unknown X outcome: pending stays, no auto-retry.
+  const posted = await client.v2.post<TweetV2PostTweetResult>("tweets", { text }, { timeout: X_REQUEST_TIMEOUT_MS });
+  return posted.data.id;
 }

@@ -2,6 +2,7 @@
  * Print @agentreleases profile + recent tweets; flag version duplicates.
  */
 import { TwitterApi } from "twitter-api-v2";
+import { TWEET_VERSION_KEY } from "./sources/types.ts";
 
 const missing = ["X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"].filter(
   (k) => !process.env[k]?.trim(),
@@ -51,7 +52,7 @@ for (const t of rows) {
   console.log(t.created_at, t.id);
   console.log(t.text.slice(0, 280));
   console.log("metrics", JSON.stringify(t.public_metrics));
-  const m2 = t.text.match(/【(Claude|Codex|Grok)】[\s\S]*?(\d+\.\d+\.\d+|rust-v[\d.]+)/);
+  const m2 = t.text.match(TWEET_VERSION_KEY);
   const key = m2 ? `${m2[1]}:${m2[2]}` : `other:${t.id}`;
   const arr = byKey.get(key) ?? [];
   arr.push(t);

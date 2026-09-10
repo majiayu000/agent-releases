@@ -8,15 +8,22 @@ import { pickBullets } from "./filter.ts";
 const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/anthropic";
 /** Default BigModel draft model (override with DRAFT_MODEL). */
 export const DEFAULT_MODEL = "glm-5.3-flash";
-const TIMEOUT_MS = Number(process.env.DRAFT_TIMEOUT_MS) || 120_000;
-/** Keep the configured budget; exhaustion is a visible generation failure. */
-const MAX_TOKENS = Number(process.env.DRAFT_MAX_TOKENS) || 4_096;
 /**
  * GLM-5.3 / glm-5.3-flash always think; "disabled" → HTTP 400.
  * Use Messages API output_config.effort to request a short reasoning budget.
  */
-const REASONING_EFFORT =
-  (process.env.DRAFT_REASONING_EFFORT?.trim() || "low") as string;
+
+function draftTimeoutMs(): number {
+  return Number(process.env.DRAFT_TIMEOUT_MS) || 120_000;
+}
+
+function draftMaxTokens(): number {
+  return Number(process.env.DRAFT_MAX_TOKENS) || 32_768;
+}
+
+function reasoningEffort(): string {
+  return process.env.DRAFT_REASONING_EFFORT?.trim() || "low";
+}
 
 export function isLlmDraftConfigured(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
@@ -115,7 +122,7 @@ function extractText(data: AnthropicMessageResponse): string {
 }
 
 /**
- * Call Messages API; throws on HTTP/timeout/empty. Caller handles fallback.
+ * Call Messages API; throws on HTTP/timeout/empty. Never substitute a template.
  */
 export async function draftChinesePostWithLlm(release: Release): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
@@ -124,9 +131,11 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
   const model = draftModelId();
   const url = `${baseUrl()}/v1/messages`;
   const thinking = process.env.DRAFT_THINKING?.trim().toLowerCase() === "on";
+  const timeoutMs = draftTimeoutMs();
+  const maxTokens = draftMaxTokens();
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(url, {
@@ -139,10 +148,10 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
       },
       body: JSON.stringify({
         model,
-        max_tokens: MAX_TOKENS,
+        max_tokens: maxTokens,
         temperature: 0.3,
         // Messages API effort uses output_config, not the native chat-completions field.
-        output_config: { effort: REASONING_EFFORT },
+        output_config: { effort: reasoningEffort() },
         // GLM-5.3-Flash always thinks; sending thinking.disabled → HTTP 400.
         // Effort is independent of thinking; leave explicit thinking opt-in.
         ...(thinking
