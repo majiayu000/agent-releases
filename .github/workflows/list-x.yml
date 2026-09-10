@@ -11,10 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile || bun install
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
       - name: List @agentreleases
         env:
           X_API_KEY: ${{ secrets.X_API_KEY }}

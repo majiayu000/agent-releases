@@ -10,7 +10,7 @@ const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/anthropic";
 /** Default BigModel draft model (override with DRAFT_MODEL). */
 export const DEFAULT_MODEL = "glm-5.3-flash";
 const TIMEOUT_MS = Number(process.env.DRAFT_TIMEOUT_MS) || 120_000;
-/** API requires max_tokens; high enough for GLM thinking + short post; override with DRAFT_MAX_TOKENS (32768 ok if timeout allows). */
+/** Keep the configured budget; exhaustion is a visible generation failure. */
 const MAX_TOKENS = Number(process.env.DRAFT_MAX_TOKENS) || 4_096;
 /**
  * GLM-5.3 / glm-5.3-flash always think; "disabled" → HTTP 400.
@@ -53,7 +53,8 @@ ${header}
 5. 最后一行单独放发布链接（不要加任何前后缀）：
 ${release.url}
 6. 全文不要残留英文句子；专有名词与反引号内代码可保留英文。
-7. 全文按 X 加权长度约 280（中文/非 ASCII≈2，链接≈23）；尽量短。
+7. 全文按 X 加权长度不超过 280（中文/非 ASCII≈2，链接≈23）；宁可只写一条完整要点，也不要截断句子或用省略号。
+8. 每条要点必须解释实际变化，不能用「详见发版说明」代替；输出前检查没有未翻译的英文句子。
 
 只输出帖文正文，不要解释、不要 markdown 代码块。
 
@@ -143,9 +144,7 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
 
   const model = draftModelId();
   const url = `${baseUrl()}/v1/messages`;
-  console.log(
-    `[draft-llm] model=${model} timeoutMs=${TIMEOUT_MS} max_tokens=${MAX_TOKENS} reasoning_effort=${REASONING_EFFORT} url=${url}`,
-  );
+  const thinking = process.env.DRAFT_THINKING?.trim().toLowerCase() === "on";
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -166,7 +165,7 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
         // GLM-5.3-Flash always thinks; sending thinking.disabled → HTTP 400.
         // Explicit thinking.enabled + reasoning_effort=low hung 120s on Actions;
         // omit by default (fast path ~30s). Opt in with DRAFT_THINKING=on (+ DRAFT_REASONING_EFFORT).
-        ...(process.env.DRAFT_THINKING?.trim().toLowerCase() === "on"
+        ...(thinking
           ? {
               thinking: { type: "enabled" as const },
               reasoning_effort: REASONING_EFFORT,
@@ -191,6 +190,9 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
     }
 
     logContentShape(data);
+    if (data.stop_reason !== "end_turn") {
+      throw new Error(`Incomplete model response (stop_reason=${data.stop_reason ?? "missing"}); no post generated`);
+    }
     const text = extractText(data);
     if (!text) {
       throw new Error(

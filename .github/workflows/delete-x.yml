@@ -8,6 +8,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: agent-releases
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -16,10 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile || bun install
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
       - name: Delete tweet
         env:
           TWEET_ID: ${{ inputs.tweet_id }}

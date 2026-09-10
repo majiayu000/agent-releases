@@ -33,6 +33,7 @@ async function toRelease(rel: GhRelease, changelogMd?: string | null): Promise<R
       : await changelogSection(tag);
     if (section) notes = section;
   }
+  if (!notes) throw new Error(`Missing Claude release notes: ${tag}`);
   return {
     product: "claude",
     version: tag,
@@ -66,11 +67,7 @@ async function fetchClaudeReleasePages(
       { headers },
     );
     if (!res.ok) {
-      if (page === 1) {
-        throw new Error(`Claude API HTTP ${res.status} page=${page}`);
-      }
-      console.warn(`[claude] API ${res.status} on page=${page}; using ${all.length} releases so far`);
-      break;
+      throw new Error(`Claude API HTTP ${res.status} page=${page}`);
     }
     const list = (await res.json()) as GhRelease[];
     if (list.length === 0) break;
@@ -79,6 +76,7 @@ async function fetchClaudeReleasePages(
 
     if (afterVersion !== null) {
       for (const rel of list) {
+        if (rel.draft || rel.prerelease || !/^v?\d+\.\d+\.\d+$/.test(rel.tag_name)) continue;
         const tag = rel.tag_name.replace(/^v/, "");
         if (compareVersionIds(tag, afterVersion) <= 0) {
           foundLastSeen = true;
@@ -95,9 +93,7 @@ async function fetchClaudeReleasePages(
   }
 
   if (afterVersion !== null && !foundLastSeen) {
-    console.warn(
-      `[claude] hit page cap (${MAX_PAGES}) without finding last_seen ${afterVersion}`,
-    );
+    throw new Error(`[claude] incomplete release history before ${afterVersion}`);
   }
 
   return all;
@@ -110,8 +106,8 @@ async function fetchClaudeReleasePages(
 export async function fetchClaudeSince(afterVersion: string | null): Promise<Release[]> {
   try {
     const list = await fetchClaudeReleasePages(afterVersion);
-    const stables = list.filter((r) => !r.draft && !r.prerelease);
-    if (stables.length === 0 && list[0]) stables.push(list[0]);
+    const stables = list.filter((r) => !r.draft && !r.prerelease && /^v?\d+\.\d+\.\d+$/.test(r.tag_name));
+    if (!stables.length) throw new Error("Claude API returned no stable releases");
 
     let needChangelog = false;
     const mapped: { rel: GhRelease; tag: string }[] = [];
@@ -149,9 +145,12 @@ async function fetchClaudeSinceFromChangelog(
   afterVersion: string | null,
 ): Promise<Release[]> {
   const md = await fetchChangelogMd();
-  if (!md) return [];
+  if (!md) throw new Error("Claude changelog unavailable");
   const tags = [...md.matchAll(/^##\s+(\d+\.\d+\.\d+)\s*$/gm)].map((m) => m[1]!);
-  if (tags.length === 0) return [];
+  if (tags.length === 0) throw new Error("Claude changelog has no version headings");
+  if (afterVersion !== null && !tags.some(tag => compareVersionIds(tag, afterVersion) <= 0)) {
+    throw new Error(`Claude changelog history does not reach ${afterVersion}`);
+  }
 
   if (afterVersion === null) {
     const tag = tags[0]!;
@@ -186,7 +185,7 @@ async function fetchChangelogMd(): Promise<string | null> {
     "https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md",
     { headers: { "User-Agent": "agent-releases-bot" } },
   );
-  if (!mdRes.ok) return null;
+  if (!mdRes.ok) throw new Error(`Claude changelog HTTP ${mdRes.status}`);
   return mdRes.text();
 }
 

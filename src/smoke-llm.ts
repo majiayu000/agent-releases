@@ -3,7 +3,8 @@
  * Logs only status/latency/block meta + whether Chinese text looks usable.
  * Never prints API keys.
  */
-import { draftChinesePostWithLlm, isLlmDraftConfigured, draftModelId } from "./draft-llm.ts";
+import { isLlmDraftConfigured, draftModelId } from "./draft-llm.ts";
+import { draftChinesePost } from "./draft.ts";
 import type { Release } from "./sources/types.ts";
 
 if (!isLlmDraftConfigured()) {
@@ -27,7 +28,7 @@ const release: Release = {
 console.log(`smoke-llm model=${draftModelId()} base=${process.env.ANTHROPIC_BASE_URL || "(default)"}`);
 const t0 = Date.now();
 try {
-  const text = await draftChinesePostWithLlm(release);
+  const text = await draftChinesePost(release);
   const ms = Date.now() - t0;
   const hasHeader = text.includes("【Claude】Claude Code 2.1.267 发布");
   const hasUrl = text.includes(release.url);

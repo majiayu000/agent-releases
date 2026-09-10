@@ -6,12 +6,12 @@
 > 定位：中文开发者的 AI Agent 发版雷达（Claude Code / Codex / Grok Build；Grok Bot 待接）
 
 ## 一句话
-非官方、只报有料的 Added/Changed；Action 发货，人只做冷启动曝光。
+非官方、只报有料的 Added/Changed；正常情况下 Action 发布；生成失败或发布结果不明时由人核对，禁止自动重复试发。
 
 ## 分工
 | 角色 | 职责 |
 | --- | --- |
-| GitHub Action（每小时） | 监控三源 → 筛 Fixed-only → 中文三条 → 默认发 X（`DRY_RUN=false`） |
+| GitHub Action（每小时） | 监控三源 → 筛 Fixed-only → 完整中文 → 持久化意图 → 发 X → 保存结果 |
 | Felix（每周 ≤30 分钟） | 置顶/简介、大号带 1～2 次、回评论、偶尔小红书改编 |
 | star（助手） | 起稿、周报、大版本对比帖、改管道 |
 
@@ -66,9 +66,9 @@ Not affiliated with Anthropic / OpenAI / xAI
 
 ## 管道备忘
 - Secrets：`X_API_KEY` / `X_API_SECRET` / `X_ACCESS_TOKEN` / `X_ACCESS_TOKEN_SECRET`
-- 草稿模型：`DRAFT_MODEL=glm-5.3-flash`（BigModel Anthropic 网关）；超时默认 60s
-- 状态：`.state/last_posted_*.txt` + 追加式 `.state/posted.jsonl`（防重复发帖）；commit 必须带上 `.state/`
-- 手动只开 Issue：Actions → hourly → `dry_run=true`
+- 草稿模型：`DRAFT_MODEL=glm-5.3-flash`（BigModel Anthropic 网关）；超时默认 120s；失败停发，不使用规则替换兜底
+- 状态：`.state/last_posted_*.txt` + 追加式 `.state/posted.jsonl`；先持久化意图再发帖，未决意图必须核对，不点击 Re-run jobs
+- 手动只预览：Actions → hourly → `dry_run=true`；日志/artifact 保存草稿，不创建 Issue，不推进状态
 - 删帖：workflow `delete X post` + tweet id
 - 源：Claude GitHub/CHANGELOG；Codex rust releases；Grok Build changelog；Grok Bot 未接
 
@@ -76,3 +76,5 @@ Not affiliated with Anthropic / OpenAI / xAI
 1. 大号转发模板 + 小红书首发
 2. 接入 Grok Bot 粗糙源
 3. 每周日「本周雷达」草稿 routine（只审不发）
+
+修复后的恢复步骤与上线核对见 [README](../README.md)。每日最多 5 个版本、每次每产品最多 1 条；GitHub 定时触发可能延迟。
