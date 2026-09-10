@@ -24,28 +24,33 @@ const me = await client.v2.me({
 console.log("=== profile ===");
 console.log(JSON.stringify(me.data, null, 2));
 
-const rows: { id: string; created_at?: string; text: string; public_metrics?: Record<string, number> }[] = [];
+type Row = {
+  id: string;
+  created_at?: string;
+  text: string;
+  public_metrics?: { impression_count?: number };
+};
+
+const rows: Row[] = [];
 let token: string | undefined;
 do {
   const tl = await client.v2.userTimeline(me.data.id, {
     max_results: 100,
     exclude: ["retweets", "replies"],
     "tweet.fields": ["created_at", "text", "public_metrics"],
-    pagination_token: token,
+    ...(token ? { pagination_token: token } : {}),
   });
-  for (const t of tl.data.data ?? []) rows.push(t as (typeof rows)[number]);
-  token = tl.data.meta?.next_token;
+  for (const t of tl.data.data ?? []) rows.push(t as Row);
+  token = tl.meta.next_token;
 } while (token && rows.length < 200);
 
 console.log(`=== recent tweets (${rows.length}) ===`);
-const byKey = new Map<string, typeof rows>();
+const byKey = new Map<string, Row[]>();
 for (const t of rows) {
   console.log("---");
   console.log(t.created_at, t.id);
   console.log(t.text.slice(0, 280));
   console.log("metrics", JSON.stringify(t.public_metrics));
-  const m = t.text.match(/【(Claude|Codex|Grok)】[^\n]*?(?:Claude Code|Codex CLI|Grok Build)?\s*([vV]?\d+\.\d+\.\d+|rust-v[\d.]+)/);
-  // softer key: product tag + version-ish
   const m2 = t.text.match(/【(Claude|Codex|Grok)】[\s\S]*?(\d+\.\d+\.\d+|rust-v[\d.]+)/);
   const key = m2 ? `${m2[1]}:${m2[2]}` : `other:${t.id}`;
   const arr = byKey.get(key) ?? [];
@@ -61,12 +66,14 @@ for (const [key, arr] of byKey) {
   dupGroups++;
   console.log(`DUP ${key} count=${arr.length}`);
   for (const t of arr) {
-    console.log(`  ${t.id} imp=${t.public_metrics?.impression_count ?? "?"} ${t.created_at} ${(t.text.split("\n")[0] ?? "").slice(0, 80)}`);
+    const line = (t.text.split("\n")[0] ?? "").slice(0, 80);
+    console.log(
+      `  ${t.id} imp=${t.public_metrics?.impression_count ?? "?"} ${t.created_at} ${line}`,
+    );
   }
 }
 if (!dupGroups) console.log("NO_VERSION_DUPLICATES among listed tweets");
 
-# verify previously deleted ids are gone
 const deleted = ["2097850006208233749", "2097783019860074831", "2097821154090390002"];
 console.log("=== deleted-id check ===");
 for (const id of deleted) {
