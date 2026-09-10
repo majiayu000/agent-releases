@@ -163,15 +163,11 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
         model,
         max_tokens: MAX_TOKENS,
         temperature: 0.3,
-        // Default: do NOT enable thinking — it was eating max_tokens / timing out
-        // on BigModel Anthropic gateway (thinking-only, stop_reason=max_tokens).
-        // Opt in with DRAFT_THINKING=on.
-        ...(process.env.DRAFT_THINKING?.trim().toLowerCase() === "on"
-          ? {
-              thinking: { type: "enabled" as const },
-              reasoning_effort: REASONING_EFFORT,
-            }
-          : {}),
+        // GLM-5.3 / GLM-5.3-Flash: thinking cannot be disabled (disabled → HTTP 400).
+        // Default effort is max if omitted — that burned our 120s budget at max_tokens=32768.
+        // Always send enabled + low for short Chinese posts; override with DRAFT_REASONING_EFFORT.
+        thinking: { type: "enabled" as const },
+        reasoning_effort: REASONING_EFFORT,
         messages: [{ role: "user", content: buildPrompt(release) }],
       }),
       signal: controller.signal,
