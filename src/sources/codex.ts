@@ -25,6 +25,7 @@ function ghHeaders(): Record<string, string> {
 }
 
 function toRelease(rel: GhRelease): Release {
+  if (!rel.body?.trim()) throw new Error(`Missing Codex release notes: ${rel.tag_name}`);
   const display = rel.tag_name.replace(/^rust-v/, "").replace(/^v/, "");
   return {
     product: "codex",
@@ -37,7 +38,7 @@ function toRelease(rel: GhRelease): Release {
 }
 
 function isRustTag(tag: string): boolean {
-  return /^rust-v/.test(tag);
+  return /^rust-v\d+\.\d+\.\d+$/.test(tag);
 }
 
 /** Tip-only (newest rust-v* preferred). Used for seed. */
@@ -50,9 +51,7 @@ export async function fetchLatestCodex(): Promise<Release | null> {
  * rust-v* releases newer than `afterVersion` (exclusive), oldest-first.
  * Pass `null` to get only the tip (for seeding).
  *
- * HTML tip-only fallback is allowed for seed (afterVersion === null) only.
- * If API fails and last_seen is set with a newer tip, fail the product
- * rather than silently skip middle versions.
+ * API errors and incomplete history fail the product; never guess from an HTML tip.
  */
 export async function fetchCodexSince(afterVersion: string | null): Promise<Release[]> {
   const headers = ghHeaders();
@@ -79,7 +78,7 @@ export async function fetchCodexSince(afterVersion: string | null): Promise<Rele
 
       if (afterVersion !== null) {
         for (const rel of list) {
-          if (compareVersionIds(rel.tag_name, afterVersion) <= 0) {
+          if (!rel.draft && !rel.prerelease && isRustTag(rel.tag_name) && compareVersionIds(rel.tag_name, afterVersion) <= 0) {
             foundLastSeen = true;
             break;
           }
@@ -98,17 +97,15 @@ export async function fetchCodexSince(afterVersion: string | null): Promise<Rele
 
   if (apiOk) {
     if (afterVersion !== null && !foundLastSeen) {
-      console.warn(
-        `[codex] hit page cap (${MAX_PAGES}) without finding last_seen ${afterVersion}`,
-      );
+      throw new Error(`[codex] incomplete release history before ${afterVersion}`);
     }
 
     const rust = all.filter((r) => !r.draft && !r.prerelease && isRustTag(r.tag_name));
-    const pool =
-      rust.length > 0 ? rust : all.filter((r) => !r.draft && !r.prerelease);
+    if (!rust.length) throw new Error("Codex API returned no stable rust releases");
+    const pool = rust;
 
     if (afterVersion === null) {
-      const tip = pool[0] || all[0];
+      const tip = pool[0];
       return tip ? [toRelease(tip)] : [];
     }
 
@@ -118,46 +115,5 @@ export async function fetchCodexSince(afterVersion: string | null): Promise<Rele
     return newer.map(toRelease);
   }
 
-  console.warn(`[codex] API ${lastStatus || "error"}, considering HTML tip fallback`);
-  const tip = await fetchCodexTipFromHtml();
-  if (!tip) {
-    throw new Error(`[codex] API ${lastStatus || "error"} and HTML tip unparseable`);
-  }
-
-  // Seed only: tip-only is OK
-  if (afterVersion === null) return [tip];
-
-  if (
-    tip.version === afterVersion ||
-    compareVersionIds(tip.version, afterVersion) <= 0
-  ) {
-    console.log(`[codex] HTML tip ${tip.version} <= last_seen ${afterVersion}; skip`);
-    return [];
-  }
-
-  throw new Error(
-    `[codex] API failed (${lastStatus || "error"}); HTML tip-only would skip middle versions ` +
-      `(last_seen=${afterVersion}, tip=${tip.version}). Failing product rather than advancing past gap.`,
-  );
-}
-
-async function fetchCodexTipFromHtml(): Promise<Release | null> {
-  const htmlRes = await fetch("https://github.com/openai/codex/releases", {
-    headers: { "User-Agent": "agent-releases-bot" },
-  });
-  if (!htmlRes.ok) throw new Error(`Codex HTML HTTP ${htmlRes.status}`);
-  const html = await htmlRes.text();
-  const tag =
-    html.match(/\/openai\/codex\/releases\/tag\/(rust-v[0-9.]+)/)?.[1] ||
-    html.match(/\/openai\/codex\/releases\/tag\/(v?[0-9.]+)/)?.[1];
-  if (!tag) return null;
-  const display = tag.replace(/^rust-v/, "").replace(/^v/, "");
-  return {
-    product: "codex",
-    version: tag,
-    displayVersion: display,
-    title: `Codex ${tag}`,
-    notes: "- See release notes on GitHub",
-    url: `https://github.com/openai/codex/releases/tag/${tag}`,
-  };
+  throw new Error(`[codex] release API failed (${lastStatus || "network error"}); state unchanged`);
 }

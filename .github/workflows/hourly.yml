@@ -2,84 +2,144 @@ name: agent-releases hourly
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "DRY_RUN (true=Issue only, false=post to X)"
+        description: "Preview only; never advances publication state"
         required: true
-        default: "false"
+        default: "true"
         type: choice
-        options:
-          - "false"
-          - "true"
+        options: ["true", "false"]
 
 concurrency:
   group: agent-releases
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  issues: write
+  contents: read
 
 jobs:
-  run:
+  prepare:
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      sha: ${{ steps.base.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && github.ref || 'main' }}
+          persist-credentials: false
+      - id: base
+        run: |
+          mkdir -p .run
+          git rev-parse HEAD:.state > .run/base-tree
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-
-      - name: Install
-        run: bun install --frozen-lockfile || bun install
-
-      - name: Selfcheck
-        run: bun run selfcheck:draft
-
-      - name: Generate drafts / post
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - name: Prepare complete Chinese drafts
         env:
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run || 'false' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          X_API_KEY: ${{ secrets.X_API_KEY }}
-          X_API_SECRET: ${{ secrets.X_API_SECRET }}
-          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
-          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
           DRAFT_MODEL: ${{ secrets.DRAFT_MODEL }}
           DRAFT_MAX_TOKENS: ${{ secrets.DRAFT_MAX_TOKENS }}
           DRAFT_TIMEOUT_MS: ${{ secrets.DRAFT_TIMEOUT_MS }}
           DRAFT_THINKING: ${{ secrets.DRAFT_THINKING }}
-        run: bun run start
-
-      # Persist state even when one product fails (e.g. grok parse), so
-      # successful posts (claude/codex) do not re-fire next hour.
-      - name: Commit state
-        if: always()
+          PREVIEW: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
         run: |
-          git config user.name "agent-releases-bot"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Must include .state/ (last_posted_*.txt + posted.jsonl ledger)
-          git add .state || true
-          if git diff --staged --quiet; then
-            echo "No state changes"
+          if [ "$PREVIEW" = true ]; then
+            bun run src/index.ts preview
           else
-            git commit -m "chore: advance release state"
-            # Rebase retry if another run pushed state concurrently
-            pushed=0
-            for i in 1 2; do
-              if git push; then
-                pushed=1
-                break
-              fi
-              echo "push failed, fetch + rebase retry #$i"
-              git fetch origin main
-              git rebase origin/main
-            done
-            if [ "$pushed" -ne 1 ]; then
-              git push
-            fi
+            bun run src/index.ts prepare
           fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prepared
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            .state/
+            .run/
+
+  reserve:
+    needs: prepare
+    if: github.event_name == 'schedule' || inputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepared
+          path: .incoming
+      - name: Persist intent before any X request
+        run: bash scripts/commit-state.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reserved
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            .incoming/.state/
+            .incoming/.run/
+
+  publish:
+    needs: [prepare, reserve]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      result: ${{ steps.result.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: reserved
+      - name: Publish reserved posts once
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+        run: bun run src/index.ts publish
+      - uses: actions/upload-artifact@v4
+        id: result
+        if: always()
+        with:
+          name: results
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            .state/
+            .run/
+
+  persist-results:
+    needs: publish
+    if: ${{ !cancelled() && needs.publish.outputs.result != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          name: results
+          path: .incoming
+      - name: Persist successes even if another post failed
+        run: bash scripts/commit-state.sh

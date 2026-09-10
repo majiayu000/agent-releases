@@ -23,9 +23,12 @@ export async function fetchGrokBuildSince(
     );
   }
 
-  // Newest-first from page → tip is index 0
-  if (afterVersion === null) return [all[0]!];
+  if (afterVersion === null) return [all.reduce((latest, release) =>
+    compareVersionIds(release.version, latest.version) > 0 ? release : latest)];
 
+  if (!all.some(release => compareVersionIds(release.version, afterVersion) <= 0)) {
+    throw new Error(`Grok changelog history does not reach ${afterVersion}`);
+  }
   const newer = all
     .filter((r) => compareVersionIds(r.version, afterVersion) > 0)
     .sort((a, b) => compareVersionIds(a.version, b.version));
@@ -115,7 +118,7 @@ export function parseVersionBlocks(html: string): Release[] {
       i + 1 < ordered.length
         ? hits.find((h) => h.version === ordered[i + 1]!)!.index
         : Math.min(cleaned.length, start + 6000);
-    const chunk = cleaned.slice(start, Math.max(end, start + 200));
+    const chunk = cleaned.slice(start, end);
     const notes = extractNotes(chunk);
     releases.push({
       product: "grok_build",

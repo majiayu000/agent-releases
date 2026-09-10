@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "bun run src/index.ts",
-    "check": "bun run src/index.ts",
+    "start": "bun run src/index.ts preview",
+    "check": "tsc --noEmit && bun test && bun run selfcheck:draft",
+    "test": "bun test",
     "selfcheck:draft": "bun run src/draft-selfcheck.ts",
     "smoke:llm": "bun run src/smoke-llm.ts"
   },

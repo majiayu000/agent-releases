@@ -1,198 +1,132 @@
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fetchLatestClaude, fetchClaudeSince } from "./sources/claude.ts";
 import { fetchLatestCodex, fetchCodexSince } from "./sources/codex.ts";
 import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.ts";
 import type { Product, Release } from "./sources/types.ts";
-import { readState, writeState, listChangedStateFiles } from "./state.ts";
-import { appendLedger, hasPostedLive } from "./ledger.ts";
+import { readState, writeState } from "./state.ts";
+import { appendLedger, dailyPostCount, hasPostedLive, pendingPosts, postingDay } from "./ledger.ts";
 import { isNotable } from "./filter.ts";
-import {
-  draftChinesePost,
-  draftChinesePostRuleBased,
-  draftEnglishOriginalPost,
-  NO_USABLE_CHINESE_DRAFT,
-} from "./draft.ts";
-import { openDraftIssue } from "./github-issue.ts";
+import { draftChinesePost } from "./draft.ts";
 import { postTweet } from "./twitter.ts";
-import { writeFileSync } from "fs";
 
-const DRY_RUN = (process.env.DRY_RUN ?? "true").toLowerCase() !== "false";
-
-type FetchLatest = () => Promise<Release | null>;
-type FetchSince = (afterVersion: string) => Promise<Release[]>;
-
-const FETCHERS: {
+export type Source = {
   product: Product;
-  fetchLatest: FetchLatest;
-  fetchSince: FetchSince;
-}[] = [
-  {
-    product: "claude",
-    fetchLatest: fetchLatestClaude,
-    fetchSince: (after) => fetchClaudeSince(after),
-  },
-  {
-    product: "codex",
-    fetchLatest: fetchLatestCodex,
-    fetchSince: (after) => fetchCodexSince(after),
-  },
-  {
-    product: "grok_build",
-    fetchLatest: fetchLatestGrokBuild,
-    fetchSince: (after) => fetchGrokBuildSince(after),
-  },
+  fetchLatest: () => Promise<Release | null>;
+  fetchSince: (version: string) => Promise<Release[]>;
+};
+const SOURCES: Source[] = [
+  { product: "claude", fetchLatest: fetchLatestClaude, fetchSince: fetchClaudeSince },
+  { product: "codex", fetchLatest: fetchLatestCodex, fetchSince: fetchCodexSince },
+  { product: "grok_build", fetchLatest: fetchLatestGrokBuild, fetchSince: fetchGrokBuildSince },
 ];
+export type Plan = {
+  runId: string;
+  day: string;
+  posts: { release: Release; text: string }[];
+};
 
-async function handleOne(product: Product, release: Release): Promise<boolean> {
-  const prev = readState(product);
-  if (prev === null) {
-    writeState(product, release.version);
-    console.log(`[seed] ${product} -> ${release.version} (no post)`);
-    return true;
+/** Preparation has no X side effects. Only the workflow can persist reservations. */
+export async function prepare(
+  live: boolean,
+  runId: string,
+  sources = SOURCES,
+  draft = draftChinesePost,
+  now = new Date(),
+): Promise<Plan> {
+  const pending = pendingPosts();
+  if (live && pending.length) {
+    throw new Error(`Unresolved X publication; reconcile before retry: ${pending.map(p => `${p.product} ${p.version}`).join(", ")}`);
   }
-  if (prev === release.version) {
-    console.log(`[skip] ${product} ${release.version} already seen`);
-    return false;
+  const plan: Plan = { runId, day: postingDay(now), posts: [] };
+  const remaining = Math.max(0, 5 - dailyPostCount(now));
+  const updates: { product: Product; version: string }[] = [];
+  const errors: string[] = [];
+  for (const source of sources) {
+    try {
+      const prev = readState(source.product);
+      if (prev === null) {
+        const tip = await source.fetchLatest();
+        if (!tip) throw new Error("Source returned no release for initial state");
+        updates.push({ product: source.product, version: tip.version });
+        console.log(`[seed] ${source.product} ${tip.version}${live ? "" : " (preview only)"}`);
+        continue;
+      }
+      const releases = await source.fetchSince(prev);
+      console.log(`[walk] ${source.product}: ${releases.length} new releases`);
+      for (const release of releases) {
+        if (hasPostedLive(source.product, release.version) || !isNotable(release.notes)) {
+          updates.push({ product: source.product, version: release.version });
+          continue;
+        }
+        if (live && plan.posts.length >= remaining) {
+          console.log(`[deferred] daily limit reached: ${source.product} ${release.version}`);
+          break;
+        }
+        const text = await draft(release);
+        plan.posts.push({ release, text });
+        console.log(`=== ${source.product} ${release.version} ===\n${text}`);
+        // At most one new post per product per run. Never advance past an unposted version.
+        break;
+      }
+    } catch (error) {
+      errors.push(`${source.product}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
+  if (errors.length) throw new Error(errors.join("\n"));
+  if (live) {
+    for (const update of updates) writeState(update.product, update.version);
+    for (const { release, text } of plan.posts) {
+      appendLedger({ ts: now.toISOString(), product: release.product, version: release.version, dryRun: false, runId, text });
+    }
+  }
+  return plan;
+}
 
-  // Duplicate protection: already live-posted per ledger → advance state, no re-post
-  if (!DRY_RUN && hasPostedLive(product, release.version)) {
-    writeState(product, release.version);
-    console.log(
-      `[ledger-skip] ${product} ${release.version} already in ledger with tweetId; advanced state`,
-    );
-    return true;
+/** Runs only after reservations are committed remotely. Failed outcomes remain pending. */
+export async function publish(plan: Plan, send = postTweet, now = () => new Date()): Promise<void> {
+  if (plan.posts.length && plan.day !== postingDay(now())) {
+    throw new Error("Reservation crossed the daily boundary; reconcile it before publishing");
   }
-
-  if (!isNotable(release.notes)) {
-    writeState(product, release.version);
-    console.log(`[skip-fixed] ${product} ${release.version} not notable; advanced state`);
-    return true;
+  const pending = pendingPosts();
+  for (const { release, text } of plan.posts) {
+    if (!pending.some(p => p.product === release.product && p.version === release.version && p.runId === plan.runId && p.text === text)) {
+      throw new Error(`Missing pending reservation: ${release.product} ${release.version}`);
+    }
   }
+  const errors: string[] = [];
+  for (const { release, text } of plan.posts) {
+    try {
+      if (plan.day !== postingDay(now())) throw new Error("Daily boundary reached; publication stopped");
+      const tweetId = await send(text);
+      if (!/^\d+$/.test(tweetId)) throw new Error("X returned no valid tweet ID; outcome unknown");
+      appendLedger({ ts: now().toISOString(), product: release.product, version: release.version, dryRun: false, runId: plan.runId, tweetId });
+      writeState(release.product, release.version);
+      console.log(`[posted] ${release.product} ${release.version}: ${tweetId}`);
+    } catch (error) {
+      errors.push(`${release.product} ${release.version}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (errors.length) throw new Error(`Reconcile pending outcomes before retry:\n${errors.join("\n")}`);
+}
 
-  // Order: draft → post/issue → append ledger → writeState
-  let text: string;
+if (import.meta.main) {
   try {
-    text = await draftChinesePost(release);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!msg.includes(NO_USABLE_CHINESE_DRAFT)) throw e;
-
-    // No safe Chinese for live X: open issue with rule attempt + english notes,
-    // advance state so hourly does not retry-spam, NEVER postTweet.
-    let ruleAttempt = "";
-    try {
-      ruleAttempt = draftChinesePostRuleBased(release);
-    } catch {
-      ruleAttempt = "(rule-based also threw)";
+    const mode = process.argv[2] ?? "preview";
+    if (!["preview", "prepare", "publish"].includes(mode)) throw new Error(`Unknown mode: ${mode}`);
+    if (mode !== "preview" && (process.env.GITHUB_ACTIONS !== "true" || process.env.GITHUB_RUN_ATTEMPT !== "1")) {
+      throw new Error("Live phases require a fresh Actions run. Never rerun a publication job; reconcile first.");
     }
-    const englishNotes = draftEnglishOriginalPost(release);
-    const issueBody =
-      `⚠️ Live skip — ${NO_USABLE_CHINESE_DRAFT}\n` +
-      `${msg}\n\n` +
-      `--- rule-based attempt ---\n${ruleAttempt}\n\n` +
-      `--- english notes (not posted to X) ---\n${englishNotes}\n`;
-
-    console.error(
-      `[draft-skip] ${product} ${release.version}: ${msg}; opening issue, advancing state, NO tweet`,
-    );
-    const issueUrl = await openDraftIssue(release, issueBody);
-    console.error(`[draft-skip] issue: ${issueUrl}`);
-
-    appendLedger({
-      ts: new Date().toISOString(),
-      product,
-      version: release.version,
-      issueUrl,
-      dryRun: DRY_RUN,
-      // no tweetId — intentionally did not post to X
-    });
-    writeState(product, release.version);
-    return true;
-  }
-
-  console.log(`\n=== draft ${product} ${release.version} ===\n${text}\n`);
-
-  let tweetId: string | undefined;
-  let issueUrl: string | undefined;
-  if (DRY_RUN) {
-    issueUrl = await openDraftIssue(release, text);
-    console.log(`[dry-run] issue: ${issueUrl}`);
-  } else {
-    tweetId = await postTweet(text);
-    console.log(`[posted] tweet id ${tweetId}`);
-  }
-
-  appendLedger({
-    ts: new Date().toISOString(),
-    product,
-    version: release.version,
-    tweetId,
-    issueUrl,
-    dryRun: DRY_RUN,
-  });
-  writeState(product, release.version);
-  return true;
-}
-
-async function processProduct(
-  product: Product,
-  fetchLatest: FetchLatest,
-  fetchSince: FetchSince,
-): Promise<boolean> {
-  const prev = readState(product);
-
-  // Seed (no state): still seed latest without posting
-  if (prev === null) {
-    const tip = await fetchLatest();
-    if (!tip) {
-      console.log(`[warn] no release for ${product}`);
-      return false;
+    if (mode === "publish") {
+      const plan = JSON.parse(readFileSync(".run/plan.json", "utf8")) as Plan;
+      if (plan.runId !== process.env.GITHUB_RUN_ID) throw new Error("Publication plan belongs to another run");
+      await publish(plan);
+    } else {
+      const plan = await prepare(mode === "prepare", process.env.GITHUB_RUN_ID ?? "local");
+      mkdirSync(".run", { recursive: true });
+      writeFileSync(".run/plan.json", JSON.stringify(plan, null, 2) + "\n");
     }
-    return handleOne(product, tip);
-  }
-
-  const range = await fetchSince(prev);
-  const tipVer = range.length > 0 ? range[range.length - 1]!.version : prev;
-  console.log(`[walk] ${product} ${prev}..${tipVer} (${range.length})`);
-
-  let changed = false;
-  for (const release of range) {
-    const did = await handleOne(product, release);
-    changed = changed || did;
-  }
-  return changed;
-}
-
-async function main() {
-  console.log(`agent-releases start DRY_RUN=${DRY_RUN}`);
-  let changed = false;
-  let failed = false;
-
-  for (const { product, fetchLatest, fetchSince } of FETCHERS) {
-    try {
-      const did = await processProduct(product, fetchLatest, fetchSince);
-      changed = changed || did;
-    } catch (e) {
-      console.error(`[error] ${product}`, e);
-      failed = true;
-    }
-  }
-
-  // Hint for workflow commit step (successful products may have written state)
-  writeFileSync(
-    "/tmp/agent-releases-changed.txt",
-    changed ? "1" : "0",
-    "utf8",
-  );
-  console.log("state files:", listChangedStateFiles().join(", "));
-
-  if (failed) {
-    console.error("[fail-loud] one or more products failed; exiting 1");
-    process.exit(1);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
   }
 }
-
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
