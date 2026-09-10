@@ -114,10 +114,9 @@ export function parseVersionBlocks(html: string): Release[] {
   for (let i = 0; i < ordered.length; i++) {
     const version = ordered[i]!;
     const start = hits.find((h) => h.version === version)!.index;
-    const end =
-      i + 1 < ordered.length
-        ? hits.find((h) => h.version === ordered[i + 1]!)!.index
-        : Math.min(cleaned.length, start + 6000);
+    const end = i + 1 < ordered.length
+      ? hits.find((h) => h.version === ordered[i + 1]!)!.index
+      : cleaned.length;
     const chunk = cleaned.slice(start, end);
     const notes = extractNotes(chunk);
     releases.push({

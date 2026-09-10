@@ -183,6 +183,22 @@ describe("release content", () => {
     expect("【Grok】Grok 1.0.24 发布".match(TWEET_VERSION_KEY)).toBeNull();
   });
 
+  test("Grok last version block keeps Features after a long Bug Fixes list", () => {
+    const longFix = `<li>${"Fixed crash when reopening a session after a network timeout. ".repeat(8)}</li>`;
+    const html = [
+      "<h2>Grok Build 1.0.0</h2><ul><li>Added old command support</li></ul>",
+      "<h2>Grok Build 1.0.1</h2>",
+      "<h3>Bug Fixes</h3>",
+      `<ul>${longFix.repeat(20)}</ul>`,
+      "<h3>Features</h3><ul><li>Added unique feature never seen before</li></ul>",
+    ].join("");
+    expect(html.length).toBeGreaterThan(6000);
+    const latest = parseVersionBlocks(html).find(block => block.version === "1.0.1")!;
+    expect(latest.notes).toContain("Added unique feature never seen before");
+    expect(isNotable(latest.notes)).toBe(true);
+    expect(pickBullets(latest.notes)).toEqual(["Added unique feature never seen before"]);
+  });
+
   test("Fixed-only hints cannot masquerade as features", () => {
     expect(isNotable("- Fixed a crash in support for custom tools")).toBe(false);
     expect(isNotable("## Bug Fixes\n- Added a missing null check")).toBe(false);
@@ -198,6 +214,9 @@ describe("release content", () => {
     expect(isNotable("## Changelog\n- #42874 Show model picker @author")).toBe(false);
     expect(isNotable("## Changelog\n- Added support for custom commands")).toBe(true);
     expect(isNotable("- Add MCP")).toBe(true);
+    expect(isNotable("- Scroll history after sending a prompt no longer jumps the viewport unexpectedly")).toBe(false);
+    expect(isNotable("- 发送提示后滚动位置不再意外跳动")).toBe(false);
+    expect(isNotable("- Esc no longer cancels a running turn and instead reminds you to use Ctrl+C")).toBe(true);
     expect(() => isNotable("")).toThrow("Empty release notes");
   });
 
