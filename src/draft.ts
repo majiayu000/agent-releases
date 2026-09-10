@@ -294,6 +294,32 @@ export function draftChinesePostRuleBased(release: Release): string {
 }
 
 
+/**
+ * Structured short English original post — live X fallback when LLM Chinese fails.
+ * Header stays Chinese product/version line; bullets stay English from notes.
+ */
+export function draftEnglishOriginalPost(release: Release): string {
+  const tag = PRODUCT_TAG[release.product];
+  const name = PRODUCT_NAME[release.product];
+  const header = `${tag}${name} ${release.displayVersion} 发布`;
+
+  let raw = pickBullets(release.notes, 3);
+  if (raw.length === 0) {
+    raw = release.notes
+      .split(/[.\n]/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 20)
+      .slice(0, 3);
+  }
+  if (raw.length === 0) {
+    raw = ["See release notes"];
+  }
+
+  const bullets = raw.map((b) => (b.length > 160 ? b.slice(0, 157) + "…" : b));
+  const post = `${header}\n\n${bullets.map((b) => `• ${b}`).join("\n")}\n\n${release.url}`;
+  return trimPostToWeightedLimit(post, X_WEIGHTED_LIMIT);
+}
+
 function validateLlmDraft(text: string, release: Release): string | null {
   const tag = PRODUCT_TAG[release.product];
   const name = PRODUCT_NAME[release.product];
@@ -311,18 +337,20 @@ function validateLlmDraft(text: string, release: Release): string | null {
 
 /**
  * Prefer LLM Chinese draft when ANTHROPIC_API_KEY is set;
- * on any failure/timeout/bad shape, fall back to rule-based path.
+ * on any failure/timeout/bad shape, fall back to English original (not rule-based CN).
+ * Rule-based Chinese remains available via draftChinesePostRuleBased for selfcheck.
  */
 export async function draftChinesePost(release: Release): Promise<string> {
   if (!isLlmDraftConfigured()) {
-    return draftChinesePostRuleBased(release);
+    console.warn("[draft-llm] fallback: english-original (no API key)");
+    return draftEnglishOriginalPost(release);
   }
   try {
     const llm = await draftChinesePostWithLlm(release);
     const reason = validateLlmDraft(llm, release);
     if (reason) {
-      console.warn(`[draft-llm] fallback: ${reason}`);
-      return draftChinesePostRuleBased(release);
+      console.warn(`[draft-llm] fallback: english-original (${reason})`);
+      return draftEnglishOriginalPost(release);
     }
     const trimmed = trimPostToWeightedLimit(llm, X_WEIGHTED_LIMIT);
     if (trimmed !== llm) {
@@ -333,8 +361,8 @@ export async function draftChinesePost(release: Release): Promise<string> {
     return trimmed;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.warn(`[draft-llm] fallback: ${msg}`);
-    return draftChinesePostRuleBased(release);
+    console.warn(`[draft-llm] fallback: english-original ${msg}`);
+    return draftEnglishOriginalPost(release);
   }
 }
 

@@ -1,6 +1,6 @@
 /**
- * Tiny self-check: rule-based draftChinesePost on 2.1.265 fixture must be
- * readable Chinese; LLM path is skipped/mocked when no API key.
+ * Tiny self-check: rule-based Chinese (local only) + English-original live
+ * fallback; LLM path skipped when no API key.
  * Also covers weighted X length + grok multi-version parse + ledger helpers.
  *
  * Run: bun run selfcheck:draft
@@ -8,6 +8,7 @@
 import {
   draftChinesePost,
   draftChinesePostRuleBased,
+  draftEnglishOriginalPost,
   maxLatinRunOutsideBackticks,
 } from "./draft.ts";
 import { isLlmDraftConfigured, DEFAULT_MODEL } from "./draft-llm.ts";
@@ -116,14 +117,15 @@ function checkWeightedLength() {
 }
 
 function checkGrokParse() {
+  // Mirror live x.ai SSR: empty HTML comments between text and version.
   const html = `
     <html><body>
-    <p>Latest v1.0.13</p>
-    <h2>Grok Build 1.0.13</h2>
+    <p>Latest <span>v<!-- -->1.0.13</span></p>
+    <h2>Grok Build <!-- -->1.0.13</h2>
     <ul><li>Faster CLI downloads and smarter retries</li><li>Windows image workflow fixes</li></ul>
-    <h2>Grok Build 1.0.12</h2>
+    <h2>Grok Build <!-- -->1.0.12</h2>
     <ul><li>Context bar updates immediately</li></ul>
-    <h2>Grok Build 1.0.11</h2>
+    <h2>Grok Build <!-- -->1.0.11</h2>
     <ul><li>Smarter resume browsing</li></ul>
     </body></html>
   `;
@@ -194,19 +196,44 @@ async function main() {
   checkGrokParse();
   checkLedgerHelpers();
 
-  // Always exercise the rule-based path explicitly (independent of API key).
+  // Rule-based Chinese is local/selfcheck only (not live X fallback).
   const rulePost = draftChinesePostRuleBased(release);
   assertRulePost(rulePost, "rule-based draft");
   console.log("OK: draftChinesePostRuleBased(2.1.265) looks Chinese");
 
-  // Dry unit: without key, async entry skips LLM and matches rule path.
+  const enPost = draftEnglishOriginalPost(release);
+  console.log("--- english-original draft ---\n" + enPost + "\n--- end ---");
+  if (!enPost.includes("【Claude】Claude Code 2.1.265 发布")) {
+    console.error("FAIL: english-original missing header");
+    process.exit(1);
+  }
+  if (!enPost.includes("• ")) {
+    console.error("FAIL: english-original missing bullets");
+    process.exit(1);
+  }
+  if (!enPost.includes(release.url)) {
+    console.error("FAIL: english-original missing url");
+    process.exit(1);
+  }
+  // Bullets should retain English from notes (not rule-based CN rewrite)
+  if (!/user\.email|plugin-dir|telemetry/i.test(enPost)) {
+    console.error("FAIL: english-original should keep English note fragments");
+    process.exit(1);
+  }
+  if (weightedXLength(enPost) > X_WEIGHTED_LIMIT + 5) {
+    console.error("FAIL: english-original weighted length", weightedXLength(enPost));
+    process.exit(1);
+  }
+  console.log("OK: draftEnglishOriginalPost(2.1.265)");
+
+  // Without key, live entry uses english-original (not rule-based CN).
   if (!isLlmDraftConfigured()) {
     const asyncPost = await draftChinesePost(release);
-    if (asyncPost !== rulePost) {
-      console.error("FAIL: no-key draftChinesePost should equal rule-based");
+    if (asyncPost !== enPost) {
+      console.error("FAIL: no-key draftChinesePost should equal english-original");
       process.exit(1);
     }
-    console.log("OK: LLM skipped (no ANTHROPIC_API_KEY); async == rule-based");
+    console.log("OK: LLM skipped (no ANTHROPIC_API_KEY); async == english-original");
   } else {
     console.log("SKIP: ANTHROPIC_API_KEY set — not calling live LLM in selfcheck");
   }

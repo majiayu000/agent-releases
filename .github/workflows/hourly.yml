@@ -52,7 +52,10 @@ jobs:
           DRAFT_MODEL: ${{ secrets.DRAFT_MODEL }}
         run: bun run start
 
+      # Persist state even when one product fails (e.g. grok parse), so
+      # successful posts (claude/codex) do not re-fire next hour.
       - name: Commit state
+        if: always()
         run: |
           git config user.name "agent-releases-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

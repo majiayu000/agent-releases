@@ -39,7 +39,9 @@ export async function fetchGrokBuildSince(
 async function fetchChangelogHtml(): Promise<string> {
   const res = await fetch("https://x.ai/build/changelog", {
     headers: {
-      "User-Agent": "agent-releases-bot",
+      // Browser-like UA: bare bot UA gets 403 from some edges.
+      "User-Agent":
+        "Mozilla/5.0 (compatible; agent-releases/0.1; +https://github.com/majiayu000/agent-releases)",
       Accept: "text/html,application/xhtml+xml",
     },
   });
@@ -59,9 +61,12 @@ async function fetchChangelogHtml(): Promise<string> {
 /** Exported for selfcheck. */
 export function parseVersionBlocks(html: string): Release[] {
   // Strip scripts/styles to reduce noise
+  // Next.js / React SSR inserts empty comments between text nodes, e.g.
+  // `Grok Build <!-- -->1.0.25` and `v<!-- -->1.0.25`. Strip before match.
   const cleaned = html
     .replace(/<script[\s\S]*?<\/script>/gi, "\n")
-    .replace(/<style[\s\S]*?<\/style>/gi, "\n");
+    .replace(/<style[\s\S]*?<\/style>/gi, "\n")
+    .replace(/<!--[\s\S]*?-->/g, "");
 
   type Hit = { version: string; index: number };
   const hits: Hit[] = [];
