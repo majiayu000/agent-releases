@@ -35,9 +35,9 @@ bun run start
 - 草稿：`ANTHROPIC_API_KEY`、`ANTHROPIC_BASE_URL`、`DRAFT_MODEL`。
 - 现有调节项：`DRAFT_MAX_TOKENS`、`DRAFT_TIMEOUT_MS`、`DRAFT_THINKING`。
 
-代码默认模型仍为 `glm-5.3-flash`，端点默认 BigModel Anthropic gateway；未替换线上模型或凭据。LLM 请求失败、只返回 thinking、达到 token 上限或正文不合格都明确失败；不再使用逐词替换或英文正文兜底，不截断句子凑长度。正文检查是基本质量门槛，不能证明所有技术描述准确。
+代码默认模型仍为 `glm-5.3-flash`，端点默认 BigModel Anthropic gateway；请求使用兼容协议的 `output_config.effort`，代码生成标题与链接，模型只翻译要点；未替换线上模型或凭据。LLM 请求失败、只返回 thinking、达到 token 上限或正文不合格都明确失败；不再使用逐词替换或英文正文兜底，长度超限时减少完整要点，不截断句子凑长度。正文检查是基本质量门槛，不能证明所有技术描述准确。
 
-`smoke LLM draft` 使用与正式生成相同的参数及正文检查，只生成草稿，不发 X。2026-09-10 的线上模型链路曾连续失败；代码检查通过不能替代真实凭据下的 smoke 验证。
+`smoke LLM draft` 从三个真实发版源读取最新版本，使用与正式生成相同的参数及正文检查，只生成草稿，不发 X。2026-09-10 的线上模型链路曾连续失败；代码检查通过不能替代真实凭据下的 smoke 验证。
 
 ## 发布结果不确定时
 
@@ -52,6 +52,6 @@ bun run start
 
 ## 上线核对
 
-本次代码修复不自动回填历史账本、不回退 Grok 版本、不补发或删除历史帖子。旧账本存在已删除 tweet ID 和未记录的人工帖子，部署前应核对当前账号并校准这些具体记录；历史删帖不能从日志中推断为仍然可见。
+本次仅依据 [2026-09-10 15:41 的账号查询](https://github.com/majiayu000/agent-releases/actions/runs/34451172407) 追加确认的 4 条现存版本帖记录（Claude 2.1.261/265/267、Codex 0.154.0），保留原账本作为历史。未回退版本进度、补发或删除帖子，Grok 的历史跳过也未改变。部署前若账号又有人工操作，应重新核对对应记录。
 
 启用修复后的正式发布前，应先通过 CI、真实 LLM smoke 和手动预览，审阅四阶段 workflow 的权限与中断恢复行为。主分支保护属于仓库设置，需由维护者配置；`check` 工作流为 PR 和 push 提供验证。

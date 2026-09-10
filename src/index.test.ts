@@ -7,6 +7,7 @@ import { appendLedger, dailyPostCount, hasPostedLive, pendingPosts, readLedger }
 import { readState, writeState } from "./state.ts";
 import { isNotable, pickBullets } from "./filter.ts";
 import { draftChinesePost, validateChinesePost } from "./draft.ts";
+import { weightedXLength } from "./x-length.ts";
 import { fetchClaudeSince } from "./sources/claude.ts";
 import { fetchCodexSince } from "./sources/codex.ts";
 import type { Product, Release } from "./sources/types.ts";
@@ -201,6 +202,20 @@ describe("release content", () => {
     expect(body.output_config).toEqual({ effort: "low" });
     expect(body.reasoning_effort).toBeUndefined();
     expect(result).toStartWith("【Claude】Claude Code 2.0.0 发布");
+    expect(result).toEndWith(release().url);
+  });
+
+  test("oversized multi-bullet draft keeps a complete first change without truncation", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-not-a-secret";
+    const first = "• 新增自定义工具支持，方便开发者根据项目需求扩展工具并在会话中使用";
+    const second = "• 改进大型仓库中的文件搜索速度，减少等待时间并提高检索结果的相关性，同时可以在结果列表中查看匹配位置和上下文，方便开发者定位相关实现";
+    expect(weightedXLength(`【Claude】Claude Code 2.0.0 发布\n\n${first}\n${second}\n${second}\n\n${release().url}`)).toBeGreaterThan(280);
+    globalThis.fetch = (async () => Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: `${first}\n${second}\n${second}` }] })) as unknown as typeof fetch;
+    const result = await draftChinesePost(release());
+    expect(result).toContain(first);
+    expect(result).not.toContain("…");
+    expect(result).not.toContain(`${second}\n${second}`);
+    expect(weightedXLength(result)).toBeLessThanOrEqual(280);
     expect(result).toEndWith(release().url);
   });
 

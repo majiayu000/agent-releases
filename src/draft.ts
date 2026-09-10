@@ -30,7 +30,11 @@ export function validateChinesePost(text: string, release: Release): string {
 
 /** No key, provider failure or unusable draft is a hard failure. Never substitute a template. */
 export async function draftChinesePost(release: Release): Promise<string> {
-  const bullets = await draftChinesePostWithLlm(release);
+  const text = await draftChinesePostWithLlm(release);
+  const bullets = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   const header = `${PRODUCT_TAG[release.product]}${PRODUCT_NAME[release.product]} ${release.displayVersion} 发布`;
-  return validateChinesePost(`${header}\n\n${bullets}\n\n${release.url}`, release);
+  const assemble = () => `${header}\n\n${bullets.join("\n")}\n\n${release.url}`;
+  // Prefer fewer complete changes over cutting sentences or code tokens mid-way.
+  while (bullets.length > 1 && weightedXLength(assemble()) > X_WEIGHTED_LIMIT) bullets.pop();
+  return validateChinesePost(assemble(), release);
 }

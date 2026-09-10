@@ -9,6 +9,7 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,6 +20,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Smoke LLM
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
           DRAFT_MODEL: ${{ secrets.DRAFT_MODEL }}
