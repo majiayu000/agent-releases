@@ -30,5 +30,7 @@ export function validateChinesePost(text: string, release: Release): string {
 
 /** No key, provider failure or unusable draft is a hard failure. Never substitute a template. */
 export async function draftChinesePost(release: Release): Promise<string> {
-  return validateChinesePost(await draftChinesePostWithLlm(release), release);
+  const bullets = await draftChinesePostWithLlm(release);
+  const header = `${PRODUCT_TAG[release.product]}${PRODUCT_NAME[release.product]} ${release.displayVersion} 发布`;
+  return validateChinesePost(`${header}\n\n${bullets}\n\n${release.url}`, release);
 }

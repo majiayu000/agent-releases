@@ -190,6 +190,20 @@ describe("release content", () => {
     await expect(draftChinesePost(release())).rejects.toThrow("empty content");
   });
 
+  test("Messages request sends effort in the compatible field and code owns header/link", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-not-a-secret";
+    let body: Record<string, unknown> = {};
+    globalThis.fetch = (async (_url: RequestInfo | URL, options?: RequestInit) => {
+      body = JSON.parse(String(options?.body));
+      return Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: "• 新增自定义工具支持，方便扩展开发流程" }] });
+    }) as unknown as typeof fetch;
+    const result = await draftChinesePost(release());
+    expect(body.output_config).toEqual({ effort: "low" });
+    expect(body.reasoning_effort).toBeUndefined();
+    expect(result).toStartWith("【Claude】Claude Code 2.0.0 发布");
+    expect(result).toEndWith(release().url);
+  });
+
   test("Claude API plus changelog outage is an error, not zero updates", async () => {
     globalThis.fetch = (async () => new Response("down", { status: 503 })) as unknown as typeof fetch;
     await expect(fetchClaudeSince("1.0.0")).rejects.toThrow("503");

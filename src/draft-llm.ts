@@ -3,7 +3,6 @@
  * (Zhipu BigModel gateway by default).
  */
 import type { Release } from "./sources/types.ts";
-import { PRODUCT_NAME, PRODUCT_TAG } from "./sources/types.ts";
 import { pickBullets } from "./filter.ts";
 
 const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/anthropic";
@@ -14,7 +13,7 @@ const TIMEOUT_MS = Number(process.env.DRAFT_TIMEOUT_MS) || 120_000;
 const MAX_TOKENS = Number(process.env.DRAFT_MAX_TOKENS) || 4_096;
 /**
  * GLM-5.3 / glm-5.3-flash always think; "disabled" → HTTP 400.
- * Use low effort so thinking does not eat the whole max_tokens budget.
+ * Use Messages API output_config.effort to request a short reasoning budget.
  */
 const REASONING_EFFORT =
   (process.env.DRAFT_REASONING_EFFORT?.trim() || "low") as string;
@@ -33,33 +32,13 @@ function baseUrl(): string {
 }
 
 function buildPrompt(release: Release): string {
-  const tag = PRODUCT_TAG[release.product];
-  const name = PRODUCT_NAME[release.product];
-  const header = `${tag}${name} ${release.displayVersion} 发布`;
-  const bullets = pickBullets(release.notes, 5);
-  const notesBlock =
-    bullets.length > 0
-      ? bullets.map((b, i) => `${i + 1}. ${b}`).join("\n")
-      : release.notes.slice(0, 2500);
+  const bullets = pickBullets(release.notes, 2);
+  if (!bullets.length) throw new Error("No feature bullets available for Chinese drafting");
+  return `把下面的版本更新概括成 ${bullets.length} 条简短的简体中文要点，每条以「• 」开头。
+每条用一句完整中文说明具体变化，尽量不超过 30 个汉字。保留必要的反引号代码标识符，不添加原文没有的事实。
+不要标题、链接、解释或省略号，也不要用「详见发版说明」代替内容。只输出要点正文。
 
-  return `你是发版情报整理助手。根据下方英文发版说明，写一条完整的中文 X（Twitter）帖文。
-
-硬性格式：
-1. 第一行必须是这个标题（一字不差）：
-${header}
-2. 空一行后，写 1～3 条要点，每行以「• 」开头（实心圆点+空格），用完整中文短句。
-3. 保留说明里的反引号代码词（如 \`--plugin-dir\`），不要翻译代码标识符。
-4. 不要编造说明里没有的功能；优先概括 Added / Changed / Improved，少写 Fixed。
-5. 最后一行单独放发布链接（不要加任何前后缀）：
-${release.url}
-6. 全文不要残留英文句子；专有名词与反引号内代码可保留英文。
-7. 全文按 X 加权长度不超过 280（中文/非 ASCII≈2，链接≈23）；宁可只写一条完整要点，也不要截断句子或用省略号。
-8. 每条要点必须解释实际变化，不能用「详见发版说明」代替；输出前检查没有未翻译的英文句子。
-
-只输出帖文正文，不要解释、不要 markdown 代码块。
-
-发版说明摘录：
-${notesBlock}`;
+${bullets.map(b => `- ${b}`).join("\n")}`;
 }
 
 type AnthropicContentBlock = {
@@ -162,13 +141,13 @@ export async function draftChinesePostWithLlm(release: Release): Promise<string>
         model,
         max_tokens: MAX_TOKENS,
         temperature: 0.3,
+        // Messages API effort uses output_config, not the native chat-completions field.
+        output_config: { effort: REASONING_EFFORT },
         // GLM-5.3-Flash always thinks; sending thinking.disabled → HTTP 400.
-        // Explicit thinking.enabled + reasoning_effort=low hung 120s on Actions;
-        // omit by default (fast path ~30s). Opt in with DRAFT_THINKING=on (+ DRAFT_REASONING_EFFORT).
+        // Effort is independent of thinking; leave explicit thinking opt-in.
         ...(thinking
           ? {
               thinking: { type: "enabled" as const },
-              reasoning_effort: REASONING_EFFORT,
             }
           : {}),
         messages: [{ role: "user", content: buildPrompt(release) }],
