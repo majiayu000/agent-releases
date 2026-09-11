@@ -12,7 +12,7 @@ import { fetchClaudeSince } from "./sources/claude.ts";
 import { fetchCodexSince } from "./sources/codex.ts";
 import { parseVersionBlocks } from "./sources/grok-build.ts";
 import type { Product, Release } from "./sources/types.ts";
-import { TWEET_VERSION_KEY } from "./sources/types.ts";
+import { TWEET_VERSION_KEY, postHeader } from "./sources/types.ts";
 
 const root = process.cwd();
 const realFetch = globalThis.fetch;
@@ -178,7 +178,7 @@ describe("release content", () => {
     expect(longFixesThenFeature.notes).toContain("Added unique feature never seen before");
     expect(isNotable(longFixesThenFeature.notes)).toBe(true);
     expect(pickBullets(longFixesThenFeature.notes)).toEqual(["Added unique feature never seen before"]);
-    const grokTweet = "【Grok Build】Grok Build 1.0.24 发布\n\n• 调整 Esc 的交互行为\n\nhttps://x.ai/build/changelog";
+    const grokTweet = "⚫🚀 【Grok Build】Grok Build 1.0.24 发布\n\n🔧 调整 Esc 的交互行为\n\nhttps://x.ai/build/changelog";
     const grokKey = grokTweet.match(TWEET_VERSION_KEY);
     expect(grokKey?.[1]).toBe("Grok Build");
     expect(grokKey?.[2]).toBe("1.0.24");
@@ -226,12 +226,12 @@ describe("release content", () => {
 
   test("actual failure shapes are rejected; complete Chinese and code identifiers survive", () => {
     const r = release();
-    const wrap = (body: string) => `【Claude】Claude Code 2.0.0 发布\n\n${body}\n\n${r.url}`;
-    expect(() => validateChinesePost(wrap("• 新增 `maxEffortLevel` setting (top-level or per model under `modelSettings`): caps the effort level…"), r)).toThrow();
-    expect(() => validateChinesePost(wrap("• 更新「详见发版说明」"), r)).toThrow();
-    expect(() => validateChinesePost(wrap("• " + "新增设置".repeat(100)), r)).toThrow("length limit");
-    expect(() => validateChinesePost(wrap("• 新增 `broken 设置，支持限制最大努力等级"), r)).toThrow("incomplete code");
-    expect(validateChinesePost(wrap("• 新增 `maxEffortLevel` 设置，可按模型限制努力等级上限"), r)).toContain("`maxEffortLevel`");
+    const wrap = (body: string) => `${postHeader(r)}\n\n${body}\n\n${r.url}`;
+    expect(() => validateChinesePost(wrap("🔧 新增 `maxEffortLevel` setting (top-level or per model under `modelSettings`): caps the effort level…"), r)).toThrow();
+    expect(() => validateChinesePost(wrap("🔧 更新「详见发版说明」"), r)).toThrow();
+    expect(() => validateChinesePost(wrap("🔧 " + "新增设置".repeat(100)), r)).toThrow("length limit");
+    expect(() => validateChinesePost(wrap("🔧 新增 `broken 设置，支持限制最大努力等级"), r)).toThrow("incomplete code");
+    expect(validateChinesePost(wrap("🔧 新增 `maxEffortLevel` 设置，可按模型限制努力等级上限"), r)).toContain("`maxEffortLevel`");
   });
 
   test("missing key and incomplete LLM responses never produce fallback posts", async () => {
@@ -249,21 +249,21 @@ describe("release content", () => {
     let body: Record<string, unknown> = {};
     globalThis.fetch = (async (_url: RequestInfo | URL, options?: RequestInit) => {
       body = JSON.parse(String(options?.body));
-      return Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: "• 新增自定义工具支持，方便扩展开发流程" }] });
+      return Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: "🔧 新增自定义工具支持，方便扩展开发流程" }] });
     }) as unknown as typeof fetch;
     const result = await draftChinesePost(release());
     expect(body.output_config).toEqual({ effort: "low" });
     expect(body.reasoning_effort).toBeUndefined();
     expect(body.max_tokens).toBe(32_768);
-    expect(result).toStartWith("【Claude】Claude Code 2.0.0 发布");
+    expect(result).toStartWith("🟣🚀 【Claude】Claude Code 2.0.0 发布");
     expect(result).toEndWith(release().url);
   });
 
   test("oversized multi-bullet draft keeps a complete first change without truncation", async () => {
     process.env.ANTHROPIC_API_KEY = "test-not-a-secret";
-    const first = "• 新增自定义工具支持，方便开发者根据项目需求扩展工具并在会话中使用";
-    const second = "• 改进大型仓库中的文件搜索速度，减少等待时间并提高检索结果的相关性，同时可以在结果列表中查看匹配位置和上下文，方便开发者定位相关实现";
-    expect(weightedXLength(`【Claude】Claude Code 2.0.0 发布\n\n${first}\n${second}\n${second}\n\n${release().url}`)).toBeGreaterThan(280);
+    const first = "🔧 新增自定义工具支持，方便开发者根据项目需求扩展工具并在会话中使用";
+    const second = "🌿 改进大型仓库中的文件搜索速度，减少等待时间并提高检索结果的相关性，同时可以在结果列表中查看匹配位置和上下文，方便开发者定位相关实现";
+    expect(weightedXLength(`${postHeader(release())}\n\n${first}\n${second}\n${second}\n\n${release().url}`)).toBeGreaterThan(280);
     globalThis.fetch = (async () => Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: `${first}\n${second}\n${second}` }] })) as unknown as typeof fetch;
     const result = await draftChinesePost(release());
     expect(result).toContain(first);
@@ -280,7 +280,7 @@ describe("release content", () => {
     let body: Record<string, unknown> = {};
     globalThis.fetch = (async (_url: RequestInfo | URL, options?: RequestInit) => {
       body = JSON.parse(String(options?.body));
-      return Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: "• 新增自定义工具支持，方便扩展开发流程" }] });
+      return Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: "🔧 新增自定义工具支持，方便扩展开发流程" }] });
     }) as unknown as typeof fetch;
     try {
       await draftChinesePost(release());
