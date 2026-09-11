@@ -26,7 +26,7 @@
 这里是 Agent Releases（非官方）
 自动追踪 Claude Code / Codex / Grok Build 发版
 只整理值得看的 Added / Changed，不刷纯 bugfix
-标签：【Claude】【Codex】【Grok Build】
+标签：🟣🚀【Claude】 / 🟢🚀【Codex】 / ⚫🚀【Grok Build】；要点行首语义表情（禁止 •）
 Not affiliated with Anthropic / OpenAI / xAI
 ```
 

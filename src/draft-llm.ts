@@ -41,9 +41,10 @@ function baseUrl(): string {
 function buildPrompt(release: Release): string {
   const bullets = pickBullets(release.notes, 2);
   if (!bullets.length) throw new Error("No feature bullets available for Chinese drafting");
-  return `把下面的版本更新概括成 ${bullets.length} 条简短的简体中文要点，每条以「• 」开头。
-每条用一句完整中文说明具体变化，尽量不超过 30 个汉字。保留必要的反引号代码标识符，不添加原文没有的事实。
-不要标题、链接、解释或省略号，也不要用「详见发版说明」代替内容。只输出要点正文。
+  return `把下面的版本更新概括成 ${bullets.length} 条简短的简体中文要点。
+硬性格式：每行必须以「一个语义表情 + 空格 + 中文」开头（例如 🔧 🌿 💬 🚀 ⚙️），禁止用「•」「-」「*」当行首。
+每条用一句完整中文说明具体变化（能干什么），尽量不超过 30 个汉字。保留必要的反引号代码标识符，不添加原文没有的事实。
+不要标题、链接、解释、hashtag 或省略号；禁止「详见发版说明」「见 changelog」等空壳占位。只输出要点正文。
 
 ${bullets.map(b => `- ${b}`).join("\n")}`;
 }

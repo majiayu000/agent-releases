@@ -17,6 +17,13 @@ export const PRODUCT_TAG: Record<Product, string> = {
   grok_build: "【Grok Build】",
 };
 
+/** Stable product color mark for multi-product timeline scanning. */
+export const PRODUCT_EMOJI: Record<Product, string> = {
+  claude: "🟣",
+  codex: "🟢",
+  grok_build: "⚫",
+};
+
 const PRODUCT_TAG_ALT = Object.values(PRODUCT_TAG)
   .map(tag => tag.slice(1, -1).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
   .sort((a, b) => b.length - a.length)
@@ -36,3 +43,8 @@ export const STATE_FILE: Record<Product, string> = {
   codex: ".state/last_posted_codex.txt",
   grok_build: ".state/last_posted_grok_build.txt",
 };
+
+/** Live X heading: product emoji + rocket + tag + name + version + 发布. */
+export function postHeader(release: Release): string {
+  return `${PRODUCT_EMOJI[release.product]}🚀 ${PRODUCT_TAG[release.product]}${PRODUCT_NAME[release.product]} ${release.displayVersion} 发布`;
+}

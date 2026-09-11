@@ -47,7 +47,7 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
         if (url.hostname === 'x.ai') return new Response('<h2>Grok Build 1.0.1</h2><ul><li>Added support for custom commands</li></ul><h2>Grok Build 1.0.0</h2><ul><li>Added support for terminal sessions</li></ul>');
         if (url.hostname === 'open.bigmodel.cn') {
           calls.drafts++;
-          return Response.json({ stop_reason: failDraft ? 'max_tokens' : 'end_turn', content: [{ type: 'text', text: '• 新增自定义命令支持，方便使用终端会话' }] });
+          return Response.json({ stop_reason: failDraft ? 'max_tokens' : 'end_turn', content: [{ type: 'text', text: '🔧 新增自定义命令支持，方便使用终端会话' }] });
         }
         if (url.hostname === 'api.x.com' || url.hostname === 'api.twitter.com') {
           assert.equal(request.method, 'POST');
