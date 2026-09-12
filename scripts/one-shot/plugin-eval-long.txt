@@ -1,0 +1,72 @@
+在 Claude Code 2.1.269 版本中，Anthropic 引入了 `claude plugin eval` 命令。
+
+表面看这是一个普通的 CLI 更新，但在工程实践层面，这标志着 Claude 插件与 MCP（Model Context Protocol）生态正在正式从“原型验证（Prototyping）”走向“工业级工程化（Production-Ready）”。
+
+以往依赖开发者主观交互判断插件质量的时代结束了。
+
+——
+
+为什么 Agent 工具难以进行传统单测？
+
+在确定性软件开发中，断言测试（Assert-based Unit Test）通过 `assert result == expected` 即可实现完整的质量把关。
+
+但大模型驱动的插件开发面临三大系统性挑战：
+
+1. 调用概率性：Prompt 或工具定义微调，易引发边缘场景调用失准；
+2. 负优化隐蔽性：修复 A 场景的参数描述，常导致 B 场景产生误唤起或幻觉；
+3. 收益无法量化：缺乏标准化基线，难以衡量引入插件带来的实际增益与 Token 成本代偿。
+
+——
+
+核心架构：双轨基线评测机制
+
+`claude plugin eval` 的核心逻辑是构建了一套标准化的 A/B Baseline Testing 自动化套件：
+
+• Control（对照组）：原生 Claude（无插件或上一代插件配置）
+• Treatment（实验组）：装配当前插件的 Claude 环境
+
+评测引擎在受控参数与统一测试用例集下执行并发评测，直接量化工具命中率、上下文消耗及任务完成度的净增益（Delta）。
+
+——
+
+交付物：面向机器与人类的双模态报告
+
+该指令在执行完毕后，沉淀两类标准资产：
+
+• eval-result.json（机器可读）：包含详细的调用栈时序、Tool Call 准确率、Token 开销分布与延迟数据，方便下游数据分析或脚本消费；
+• Interactive HTML Report（人机协作）：输出结构化看板，直观呈现胜率雷达图、耗时分布与失败用例溯源，大幅降低技术评审与 Code Review 成本。
+
+——
+
+落地场景：CI/CD 自动化门禁实施
+
+对于团队级研发，该命令最核心的价值在于接入持续集成流水线，将质量把控前置。
+
+例如在 GitHub Actions 中配置质量门控（Quality Gate）：
+
+claude plugin eval \
+  --dataset tests/eval_suite.json \
+  --output ./reports/eval.json
+
+当本次 PR 导致的上下文消耗超标或工具调用准确率低于基线阈值时，自动拦截合并，确保主干分支的稳定性。
+
+——
+
+行业意义：重构生态交付标准
+
+Anthropic 官方提供评测套件，传递出清晰的技术演进信号：
+
+1. 确定性与合规性：企业级环境不再接受“黑盒式”的 Agent 工具；
+2. 生态标准重塑：未来的高可靠 MCP 插件或开源工具，其交付标准将从单纯的“可用代码”转变为“代码 + 完备的 Eval Dataset + 基准报告”；
+3. 工程重心迁移：AI 工程师的角色重心正从 Prompt 微调，向系统化评估与测试集构建（Eval Engineering）演进。
+
+——
+
+结语与实践建议
+
+AI 基础设施的发展遵循明确的规律：当工具生态成熟到一定阶段，衡量、观测与回归测试体系必然会成为核心诉求。
+
+开发团队现已可通过升级 CLI 体验：
+npm update -g @anthropic-ai/claude-code
+
+建议各 MCP 与插件作者在项目中引入基准测试集，用可复现的数据指标构建工具的长期技术壁垒。
