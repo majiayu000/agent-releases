@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { validateChinesePost } from "./draft.ts";
+import { validateChinesePost, normalizeBulletEmoji } from "./draft.ts";
 import { weightedXLength, X_WEIGHTED_LIMIT } from "./x-length.ts";
 import { parseVersionBlocks } from "./sources/grok-build.ts";
 import { postHeader } from "./sources/types.ts";
@@ -38,6 +38,18 @@ assert.throws(() =>
   ),
 );
 
+
+assert.equal(
+  normalizeBulletEmoji("🔧 🛠️ 新增 `claude plugin eval`，可对插件评测并输出报告。"),
+  "🔧 新增 `claude plugin eval`，可对插件评测并输出报告。",
+);
+const doubled = validateChinesePost(
+  `${postHeader(release)}\n\n🔧 🛠️ 新增 \`maxEffortLevel\` 设置，可按模型限制努力等级上限\n\n${release.url}`,
+  release,
+);
+assert.ok(doubled.includes("🔧 新增"));
+assert.ok(!doubled.includes("🛠️"));
+
 const blocks = parseVersionBlocks(`<p>Latest <span>v<!-- -->1.0.13</span></p>
 <h2>Grok Build <!-- -->1.0.13</h2><ul><li>Faster CLI downloads and smarter retries</li></ul>
 <h2>Grok Build <!-- -->1.0.12</h2><ul><li>Context bar updates immediately</li></ul>
@@ -46,4 +58,4 @@ assert.deepEqual(
   blocks.map((block) => block.version),
   ["1.0.13", "1.0.12", "1.0.11"],
 );
-console.log("OK: emoji Chinese payload, hollow/• rejection, X length and Grok version parsing");
+console.log("OK: single-emoji bullets, double-emoji collapse, hollow/• rejection, X length and Grok parse");
