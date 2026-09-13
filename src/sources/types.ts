@@ -1,4 +1,4 @@
-export type Product = "claude" | "codex" | "grok_build";
+export type Product = "claude" | "codex" | "codex_app" | "grok_build";
 
 export type Release = {
   product: Product;
@@ -14,6 +14,7 @@ export type Release = {
 export const PRODUCT_TAG: Record<Product, string> = {
   claude: "【Claude】",
   codex: "【Codex】",
+  codex_app: "【Codex App】",
   grok_build: "【Grok Build】",
 };
 
@@ -21,6 +22,7 @@ export const PRODUCT_TAG: Record<Product, string> = {
 export const PRODUCT_EMOJI: Record<Product, string> = {
   claude: "🟣",
   codex: "🟢",
+  codex_app: "🩵",
   grok_build: "⚫",
 };
 
@@ -29,18 +31,22 @@ const PRODUCT_TAG_ALT = Object.values(PRODUCT_TAG)
   .sort((a, b) => b.length - a.length)
   .join("|");
 
-/** Matches the live tweet heading, including 【Grok Build】. */
-export const TWEET_VERSION_KEY = new RegExp(`【(${PRODUCT_TAG_ALT})】[\\s\\S]*?(\\d+\\.\\d+\\.\\d+|rust-v[\\d.]+)`);
+/** Matches the live tweet heading, including 【Grok Build】 and two-part app builds like 26.908. */
+export const TWEET_VERSION_KEY = new RegExp(
+  `【(${PRODUCT_TAG_ALT})】[\\s\\S]*?(\\d+\\.\\d+(?:\\.\\d+)?|rust-v[\\d.]+|codex-\\d{4}-\\d{2}-\\d{2}[\\w-]*)`,
+);
 
 export const PRODUCT_NAME: Record<Product, string> = {
   claude: "Claude Code",
   codex: "Codex CLI",
+  codex_app: "Codex App",
   grok_build: "Grok Build",
 };
 
 export const STATE_FILE: Record<Product, string> = {
   claude: ".state/last_posted_claude.txt",
   codex: ".state/last_posted_codex.txt",
+  codex_app: ".state/last_posted_codex_app.txt",
   grok_build: ".state/last_posted_grok_build.txt",
 };
 

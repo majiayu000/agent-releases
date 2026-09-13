@@ -1,6 +1,7 @@
 import type { D1Database, ExportedHandler } from "@cloudflare/workers-types";
 import { fetchLatestClaude, fetchClaudeSince } from "./sources/claude.ts";
 import { fetchLatestCodex, fetchCodexSince } from "./sources/codex.ts";
+import { fetchLatestCodexApp, fetchCodexAppSince } from "./sources/codex-app.ts";
 import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.ts";
 import type { Product, Release } from "./sources/types.ts";
 import { isNotable } from "./filter.ts";
@@ -11,6 +12,7 @@ interface Env { DB: D1Database; DRY_RUN: string }
 const sources = [
   { product: "claude", latest: fetchLatestClaude, since: fetchClaudeSince },
   { product: "codex", latest: fetchLatestCodex, since: fetchCodexSince },
+  { product: "codex_app", latest: fetchLatestCodexApp, since: fetchCodexAppSince },
   { product: "grok_build", latest: fetchLatestGrokBuild, since: fetchGrokBuildSince },
 ] as const;
 const dayOf = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(date);

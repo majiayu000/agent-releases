@@ -1,12 +1,12 @@
 # agent-releases
 
-为 [@agentreleases](https://x.com/agentreleases) 整理 Claude Code、Codex CLI 和 Grok Build 的中文版本更新。非官方，与 Anthropic / OpenAI / xAI 无关。
+为 [@agentreleases](https://x.com/agentreleases) 整理 Claude Code、Codex CLI、Codex App 和 Grok Build 的中文版本更新。非官方，与 Anthropic / OpenAI / xAI 无关。
 
 ## 当前运行方式
 
 Cloudflare Worker `agent-releases` 每小时第 17 分钟检查更新；D1 的 `cursors` 保存处理进度，`publications` 保存发布状态。2026-09-10 已从 GitHub Actions 迁移；旧 `publication-state` 分支是迁移前历史，不再是实时账本。
 
-1. 读取三个版本源，跳过已发版本和纯修复，生成完整中文草稿。
+1. 读取各版本源，跳过已发版本和纯修复，生成完整中文草稿。
 2. 在 D1 原子写入 `pending` 后才调用 X。产品＋版本唯一，整个账号只允许一条未决发布；每天最多 5 个不同版本，每次每产品最多 1 条。
 3. X 返回 tweet ID 后，事务保存成功状态并推进游标。发送或回写结果不确定时保留 pending，后续任务停发，等待人工核对。
 

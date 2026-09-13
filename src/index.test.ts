@@ -32,7 +32,7 @@ const draft = async () => "已经生成完整的中文正文";
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "agent-releases-test-"));
   process.chdir(dir);
-  for (const product of ["claude", "codex", "grok_build"] as const) writeState(product, "1.0.0");
+  for (const product of ["claude", "codex", "codex_app", "grok_build"] as const) writeState(product, "1.0.0");
   writeFileSync(".state/posted.jsonl", "");
 });
 afterEach(() => {

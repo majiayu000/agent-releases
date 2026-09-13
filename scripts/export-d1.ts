@@ -5,7 +5,7 @@ import { readState } from "../src/state.ts";
 if (pendingPosts().length) throw new Error("Reconcile pending X outcomes before switching publishers");
 const quote = (value: string) => "'" + value.replace(/'/g, "''") + "'";
 const statements: string[] = [];
-for (const product of ["claude", "codex", "grok_build"] as const) {
+for (const product of ["claude", "codex", "codex_app", "grok_build"] as const) {
   const version = readState(product);
   if (!version) throw new Error(`Missing cursor: ${product}`);
   statements.push(`INSERT INTO cursors (product, version) VALUES (${quote(product)}, ${quote(version)});`);

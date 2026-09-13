@@ -3,7 +3,7 @@
 > 更新：2026-09-09（Asia/Shanghai）  
 > 账号：https://x.com/agentreleases  
 > 管道：https://github.com/majiayu000/agent-releases  
-> 定位：中文开发者的 AI Agent 发版雷达（Claude Code / Codex / Grok Build；Grok Bot 待接）
+> 定位：中文开发者的 AI Agent 发版雷达（Claude Code / Codex CLI / Codex App / Grok Build；Grok Bot 待接）
 
 ## 一句话
 非官方、只报有料的 Added/Changed；正常情况下 Cloudflare Worker 发布；生成失败或发布结果不明时由人核对，禁止自动重复试发。
@@ -24,9 +24,9 @@
 ### 置顶文案
 ```
 这里是 Agent Releases（非官方）
-自动追踪 Claude Code / Codex / Grok Build 发版
+自动追踪 Claude Code / Codex CLI / Codex App / Grok Build 发版
 只整理值得看的 Added / Changed，不刷纯 bugfix
-标签：🟣🚀【Claude】 / 🟢🚀【Codex】 / ⚫🚀【Grok Build】；要点行首语义表情（禁止 •）
+标签：🟣🚀【Claude】 / 🟢🚀【Codex】 / 🩵🚀【Codex App】 / ⚫🚀【Grok Build】；要点行首语义表情（禁止 •）
 Not affiliated with Anthropic / OpenAI / xAI
 ```
 
@@ -70,7 +70,7 @@ Not affiliated with Anthropic / OpenAI / xAI
 - 状态：Cloudflare D1 的 `cursors` + `publications`；`publication-state` 分支只保留迁移前历史；先持久化意图再发帖，未决意图必须核对，不盲目重试
 - 手动只预览：本地 `bun run dev:cloudflare` 强制 DRY_RUN=true；线上维护预览须将 Worker 配置 DRY_RUN=true 后重新部署
 - 删帖：workflow `delete X post` + tweet id
-- 源：Claude GitHub/CHANGELOG；Codex rust releases；Grok Build changelog；Grok Bot 未接
+- 源：Claude GitHub/CHANGELOG；Codex rust releases；Codex App（developers.openai.com/codex/changelog，topic=codex-app）；Grok Build changelog；Grok Bot 未接
 
 ## 待办候选
 1. 大号转发模板 + 小红书首发

@@ -33,7 +33,7 @@ export function readLedger(): LedgerEntry[] {
     }
   }
   for (const entry of out) {
-    if (!entry || !["claude", "codex", "grok_build"].includes(entry.product) ||
+    if (!entry || !["claude", "codex", "codex_app", "grok_build"].includes(entry.product) ||
         typeof entry.version !== "string" || !entry.version ||
         typeof entry.dryRun !== "boolean" || typeof entry.ts !== "string" || !Number.isFinite(Date.parse(entry.ts)) ||
         (entry.tweetId !== undefined && (typeof entry.tweetId !== "string" || !/^\d+$/.test(entry.tweetId)))) {

@@ -9,7 +9,7 @@ import { Miniflare, Response, Log, LogLevel } from 'miniflare';
 
 const bundle = readFileSync(new URL('../.worker-build/worker.js', import.meta.url), 'utf8');
 const schema = readFileSync(new URL('../migrations/0001_publications.sql', import.meta.url), 'utf8');
-const products = ['claude', 'codex', 'grok_build'];
+const products = ['claude', 'codex', 'codex_app', 'grok_build'];
 const day = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 
 async function setup(t, { preview = false, failX = false, failSource = false, failDraft = false, missingX = false } = {}) {
@@ -44,6 +44,12 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
           const releases = ['1.0.1', '1.0.0'].map(version => ({ tag_name: `${codex ? 'rust-v' : 'v'}${version}`, html_url: `https://github.com/test/releases/${version}`, body: '- Added support for custom commands and terminal sessions', draft: false, prerelease: false }));
           return Response.json(releases);
         }
+        if (url.hostname === 'developers.openai.com' && url.pathname.includes('/codex/changelog')) {
+          return new Response(`<ul>
+<li id="codex-2026-09-11-app" data-codex-topics="codex-app"><div><time>2026-09-11</time><h3>Quick chats 26.908</h3></div><article><h3>Chat while you work</h3><p>Keep ChatGPT close while you work in other apps.</p></article></li>
+<li id="codex-2026-01-01-app" data-codex-topics="codex-app"><div><time>2026-01-01</time><h3>Initial app shell 26.100</h3></div><article><h3>Desktop shell</h3><p>Added the Codex desktop shell for macOS and Windows.</p></article></li>
+</ul>`);
+        }
         if (url.hostname === 'x.ai') return new Response('<h2>Grok Build 1.0.1</h2><ul><li>Added support for custom commands</li></ul><h2>Grok Build 1.0.0</h2><ul><li>Added support for terminal sessions</li></ul>');
         if (url.hostname === 'open.bigmodel.cn') {
           calls.drafts++;
@@ -66,7 +72,12 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
   t.after(() => mf.dispose());
   db = await mf.getD1Database('DB', 'publisher');
   for (const statement of schema.split(';').map(s => s.trim()).filter(Boolean)) await db.prepare(statement).run();
-  for (const product of products) await db.prepare('INSERT INTO cursors VALUES (?, ?)').bind(product, product === 'codex' ? 'rust-v1.0.0' : '1.0.0').run();
+  for (const product of products) {
+    const version = product === 'codex' ? 'rust-v1.0.0'
+      : product === 'codex_app' ? 'codex-2026-01-01-app'
+      : '1.0.0';
+    await db.prepare('INSERT INTO cursors VALUES (?, ?)').bind(product, version).run();
+  }
   const worker = await mf.getWorker('publisher');
   const run = () => worker.scheduled({ scheduledTime: Date.now(), cron: '17 * * * *' });
   return { db, calls, run };
@@ -75,13 +86,13 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
 test('Workers runtime publishes once, persists before X and ignores replay', async t => {
   const { db, calls, run } = await setup(t);
   assert.equal((await run()).outcome, 'ok');
-  assert.equal(calls.tweets, 3);
-  assert.equal((await db.prepare("SELECT count(*) AS n FROM publications WHERE status='posted'").first()).n, 3);
+  assert.equal(calls.tweets, 4);
+  assert.equal((await db.prepare("SELECT count(*) AS n FROM publications WHERE status='posted'").first()).n, 4);
   assert.equal((await run()).outcome, 'ok');
-  assert.equal(calls.tweets, 3);
-  await db.prepare("UPDATE cursors SET version = CASE WHEN product='codex' THEN 'rust-v1.0.0' ELSE '1.0.0' END").run();
+  assert.equal(calls.tweets, 4);
+  await db.prepare("UPDATE cursors SET version = CASE WHEN product='codex' THEN 'rust-v1.0.0' WHEN product='codex_app' THEN 'codex-2026-01-01-app' ELSE '1.0.0' END").run();
   assert.equal((await run()).outcome, 'ok');
-  assert.equal(calls.tweets, 3);
+  assert.equal(calls.tweets, 4);
 });
 
 test('preview does not write state or call X', async t => {
@@ -118,7 +129,7 @@ test('overlapping cron runs cannot send the same version twice', async t => {
   const rows = (await db.prepare('SELECT * FROM publications').all()).results;
   assert.ok(calls.tweets >= 1);
   assert.equal(calls.tweets, rows.length);
-  assert.ok(calls.tweets <= 3);
+  assert.ok(calls.tweets <= 4);
   assert.equal(new Set(rows.map(r => `${r.product}:${r.version}`)).size, rows.length);
   assert.ok(rows.every(r => r.status === 'posted'));
 });
@@ -145,7 +156,7 @@ test('empty database seeds latest versions without posting historical releases',
   await db.prepare('DELETE FROM cursors').run();
   assert.equal((await run()).outcome, 'ok');
   assert.equal(calls.tweets, 0);
-  assert.equal((await db.prepare('SELECT count(*) AS n FROM cursors').first()).n, 3);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM cursors').first()).n, 4);
   assert.equal((await run()).outcome, 'ok');
   assert.equal(calls.tweets, 0);
 });
@@ -176,7 +187,7 @@ test('ledger import preserves cursors and confirmed IDs, ignores previews and re
   const exported = execute();
   assert.equal(exported.status, 0, exported.stderr);
   for (const sql of exported.stdout.trim().split('\n')) await db.prepare(sql).run();
-  assert.equal((await db.prepare('SELECT count(*) AS n FROM cursors').first()).n, 3);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM cursors').first()).n, 4);
   const saved = (await db.prepare('SELECT * FROM publications').all()).results;
   assert.equal(saved.length, 1);
   assert.equal(saved[0].tweet_id, '222');
@@ -194,8 +205,8 @@ test('a deferred reservation still publishes later products', async t => {
   await db.prepare("CREATE TRIGGER skip_claude BEFORE INSERT ON publications WHEN NEW.product = 'claude' BEGIN SELECT RAISE(IGNORE); END").run();
   assert.equal((await run()).outcome, 'ok');
   const products = (await db.prepare("SELECT product FROM publications WHERE status='posted'").all()).results.map(r => r.product);
-  assert.deepEqual([...products].sort(), ['codex', 'grok_build']);
-  assert.equal(calls.tweets, 2);
+  assert.deepEqual([...products].sort(), ['codex', 'codex_app', 'grok_build']);
+  assert.equal(calls.tweets, 3);
 });
 
 test('missing X secrets cannot create a pending publication', async t => {

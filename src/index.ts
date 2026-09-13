@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fetchLatestClaude, fetchClaudeSince } from "./sources/claude.ts";
 import { fetchLatestCodex, fetchCodexSince } from "./sources/codex.ts";
+import { fetchLatestCodexApp, fetchCodexAppSince } from "./sources/codex-app.ts";
 import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.ts";
 import type { Product, Release } from "./sources/types.ts";
 import { readState, writeState } from "./state.ts";
@@ -17,6 +18,7 @@ export type Source = {
 const SOURCES: Source[] = [
   { product: "claude", fetchLatest: fetchLatestClaude, fetchSince: fetchClaudeSince },
   { product: "codex", fetchLatest: fetchLatestCodex, fetchSince: fetchCodexSince },
+  { product: "codex_app", fetchLatest: fetchLatestCodexApp, fetchSince: fetchCodexAppSince },
   { product: "grok_build", fetchLatest: fetchLatestGrokBuild, fetchSince: fetchGrokBuildSince },
 ];
 export type Plan = {
