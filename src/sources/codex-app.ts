@@ -17,24 +17,21 @@ export async function fetchCodexAppSince(
   afterVersion: string | null,
 ): Promise<Release[]> {
   const html = await fetchChangelogHtml();
+  // Document order from the page (newest first). Do not sort by slug.
   const all = parseCodexAppEntries(html);
   if (all.length === 0) {
     throw new Error("[codex_app] could not parse any Codex App changelog entries");
   }
 
-  if (afterVersion === null) {
-    return [all.reduce((latest, release) =>
-      compareChangelogIds(release.version, latest.version) > 0 ? release : latest)];
-  }
+  if (afterVersion === null) return [all[0]!];
 
-  if (!all.some((release) => compareChangelogIds(release.version, afterVersion) <= 0)) {
+  const cursorIndex = all.findIndex((release) => release.version === afterVersion);
+  if (cursorIndex < 0) {
     throw new Error(`Codex App changelog history does not reach ${afterVersion}`);
   }
 
-  const newer = all
-    .filter((r) => compareChangelogIds(r.version, afterVersion) > 0)
-    .sort((a, b) => compareChangelogIds(a.version, b.version));
-
+  // Entries before the cursor in document order are newer; walk oldest-first.
+  const newer = all.slice(0, cursorIndex).reverse();
   console.log(
     `[codex_app] parsed ${all.length} app entries; ${newer.length} newer than ${afterVersion}`,
   );
@@ -140,7 +137,7 @@ function findMatchingLiEnd(html: string, from: number): number {
   return -1;
 }
 
-/** Changelog ids sort by embedded ISO date then suffix. */
+/** Best-effort id ordering for tests; live walks use document order instead. */
 export function compareChangelogIds(a: string, b: string): number {
   return a.localeCompare(b);
 }
@@ -222,9 +219,11 @@ export function articleToNotes(articleHtml: string): string {
     parts.push(summary ? `- ${heading}: ${summary}` : `- ${heading}`);
   }
   if (!matched) {
-    // Fallback: whole article as one bullet so isNotable can decide.
-    const text = htmlToText(articleHtml).trim();
-    if (text) parts.push(`- ${text.split("\n")[0]}`);
+    // Fallback: keep every nonempty line as a bullet (not only the first).
+    for (const line of htmlToText(articleHtml).split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed) parts.push(`- ${trimmed}`);
+    }
   }
   return parts.join("\n");
 }

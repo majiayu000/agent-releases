@@ -45,7 +45,19 @@ describe("codex app changelog", () => {
   });
 
   test("articleToNotes falls back for unstructured article", () => {
-    const notes = articleToNotes("<p>Only a paragraph about a new panel.</p>");
-    expect(notes.startsWith("- ")).toBe(true);
+    const notes = articleToNotes("<p>Only a paragraph about a new panel.</p><p>Second change arrives later.</p>");
+    expect(notes.split("\n")).toEqual([
+      "- Only a paragraph about a new panel.",
+      "- Second change arrives later.",
+    ]);
+  });
+
+  test("date-only displayVersion matches tweet version key", () => {
+    const entry = parseCodexAppEntries(fixture).find((e) => e.version === "codex-2026-08-25-browser")!;
+    expect(entry.displayVersion).toBe("2026-08-25");
+    const header = postHeader(entry);
+    const m = header.match(TWEET_VERSION_KEY);
+    expect(m?.[1]).toBe("Codex App");
+    expect(m?.[2]).toBe("2026-08-25");
   });
 });

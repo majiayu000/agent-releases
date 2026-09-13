@@ -7,7 +7,11 @@ const quote = (value: string) => "'" + value.replace(/'/g, "''") + "'";
 const statements: string[] = [];
 for (const product of ["claude", "codex", "codex_app", "grok_build"] as const) {
   const version = readState(product);
-  if (!version) throw new Error(`Missing cursor: ${product}`);
+  // Legacy snapshots predate codex_app; skip missing optional cursors.
+  if (!version) {
+    if (product === "codex_app") continue;
+    throw new Error(`Missing cursor: ${product}`);
+  }
   statements.push(`INSERT INTO cursors (product, version) VALUES (${quote(product)}, ${quote(version)});`);
 }
 // Retain one confirmed success per product/version, including deleted posts.

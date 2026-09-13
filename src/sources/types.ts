@@ -31,9 +31,9 @@ const PRODUCT_TAG_ALT = Object.values(PRODUCT_TAG)
   .sort((a, b) => b.length - a.length)
   .join("|");
 
-/** Matches the live tweet heading, including 【Grok Build】 and two-part app builds like 26.908. */
+/** Matches the live tweet heading, including 【Grok Build】, two-part app builds like 26.908, and date-only App posts. */
 export const TWEET_VERSION_KEY = new RegExp(
-  `【(${PRODUCT_TAG_ALT})】[\\s\\S]*?(\\d+\\.\\d+(?:\\.\\d+)?|rust-v[\\d.]+|codex-\\d{4}-\\d{2}-\\d{2}[\\w-]*)`,
+  `【(${PRODUCT_TAG_ALT})】` + String.raw`[\s\S]*?(\d+\.\d+(?:\.\d+)?|\d{4}-\d{2}-\d{2}|rust-v[\d.]+|codex-\d{4}-\d{2}-\d{2}[\w-]*)`,
 );
 
 export const PRODUCT_NAME: Record<Product, string> = {
