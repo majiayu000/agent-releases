@@ -8,7 +8,22 @@ import { isNotable } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
 import { assertXCredentials, postTweet } from "./twitter.ts";
 
-interface Env { DB: D1Database; DRY_RUN: string }
+interface Env {
+  DB: D1Database;
+  DRY_RUN: string;
+  GITHUB_TOKEN?: string;
+  ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_BASE_URL?: string;
+  DRAFT_MODEL?: string;
+  DRAFT_MAX_TOKENS?: string;
+  DRAFT_TIMEOUT_MS?: string;
+  DRAFT_THINKING?: string;
+  DRAFT_REASONING_EFFORT?: string;
+  X_API_KEY?: string;
+  X_API_SECRET?: string;
+  X_ACCESS_TOKEN?: string;
+  X_ACCESS_TOKEN_SECRET?: string;
+}
 const sources = [
   { product: "claude", latest: fetchLatestClaude, since: fetchClaudeSince },
   { product: "codex", latest: fetchLatestCodex, since: fetchCodexSince },
@@ -19,6 +34,10 @@ const dayOf = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia
 const pending = (db: D1Database) => db.prepare("SELECT product, version FROM publications WHERE status = 'pending'").first<{ product: string; version: string }>();
 
 async function run(env: Env): Promise<void> {
+  // nodejs_compat modules read process.env; mirror Worker bindings explicitly.
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === "string" && value && key !== "DRY_RUN") process.env[key] = value;
+  }
   if (env.DRY_RUN !== "true" && env.DRY_RUN !== "false") throw new Error("Set DRY_RUN explicitly to true or false");
   const preview = env.DRY_RUN === "true";
   const db = env.DB;

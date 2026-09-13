@@ -67,7 +67,8 @@ export function parseCodexAppEntries(html: string): Release[] {
     .replace(/<!--[\s\S]*?-->/g, "");
 
   const releases: Release[] = [];
-  const openRe = /<li\b([^>]*)>/gi;
+  // Only open tags that already mention codex-app — avoids scanning every nested <li>.
+  const openRe = /<li\b([^>]*data-codex-topics="[^"]*codex-app[^"]*"[^>]*)>/gi;
   let om: RegExpExecArray | null;
   while ((om = openRe.exec(cleaned)) !== null) {
     const attrs = om[1] ?? "";
@@ -79,10 +80,11 @@ export function parseCodexAppEntries(html: string): Release[] {
     if (!topics.includes("codex-app")) continue;
 
     const innerStart = om.index + om[0].length;
-    const innerEnd = findMatchingLiEnd(cleaned, innerStart);
+    // Bound the search window; changelog entries are far smaller than the full page.
+    const windowEnd = Math.min(cleaned.length, innerStart + 80_000);
+    const innerEnd = findMatchingLiEnd(cleaned, innerStart, windowEnd);
     if (innerEnd < 0) throw new Error(`[codex_app] unclosed li for ${id}`);
     const inner = cleaned.slice(innerStart, innerEnd);
-    // Advance search past this li to avoid re-scanning nested opens unnecessarily
     openRe.lastIndex = innerEnd + 5;
 
     const date = textBetween(inner, /<time\b[^>]*>/i, /<\/time>/i) ??
@@ -118,14 +120,15 @@ export function parseCodexAppEntries(html: string): Release[] {
 }
 
 /** Depth-aware </li> finder starting after an opening <li...>. */
-function findMatchingLiEnd(html: string, from: number): number {
+function findMatchingLiEnd(html: string, from: number, until = html.length): number {
   let depth = 1;
   let i = from;
-  while (i < html.length) {
-    const nextOpen = html.toLowerCase().indexOf("<li", i);
-    const nextClose = html.toLowerCase().indexOf("</li>", i);
-    if (nextClose < 0) return -1;
-    if (nextOpen >= 0 && nextOpen < nextClose) {
+  const lower = html.toLowerCase();
+  while (i < until) {
+    const nextOpen = lower.indexOf("<li", i);
+    const nextClose = lower.indexOf("</li>", i);
+    if (nextClose < 0 || nextClose >= until) return -1;
+    if (nextOpen >= 0 && nextOpen < nextClose && nextOpen < until) {
       depth += 1;
       i = nextOpen + 3;
       continue;
