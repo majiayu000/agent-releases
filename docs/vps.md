@@ -7,7 +7,7 @@
 - Bun：`/opt/agent-releases-preview/bin/bun`，与 CI 一致固定为 1.3.14；此 VPS 无 AVX2，使用官方 `bun-linux-x64-baseline` 构建并核对下载 SHA-256
 - 只读账本快照：`/var/lib/agent-releases-preview/snapshot.sqlite`
 - 手动服务：`agent-releases-preview.service`，以 `agentrelease` 用户执行一次后退出
-- 模型配置（配置后才可生成新草稿）：`/etc/agent-releases-preview.env`，root 所有、权限 0600
+- 模型配置：`/etc/agent-releases-preview.env`，沿用 GitHub Actions Secrets 中的端点、密钥和 `glm-5.3-flash`，root 所有、权限 0600
 
 ## 手动预览
 
@@ -28,5 +28,7 @@ bun run preview:vps /absolute/path/to/snapshot.sqlite
 ```
 
 `src/vps.test.ts` 使用真实 SQLite 和封闭网络替身，X 调用被替身替换。覆盖只读预览、持久化意图、防重复、未知发送结果、事务回滚、重叠执行和每日上限。原 workerd/D1 集成测试继续验证 Worker。
+
+2026-09-16 已在 VPS 对四个来源执行真实 `smoke:llm`，全部生成完整中文草稿并通过正文校验，合计约 18 秒。模型配置通过临时 Actions 工作流按 VPS 一次性公钥加密传递，只有 VPS 解密；没有复制 X 凭据。
 
 后续若切换正式发布，需要另外启用正式 VPS 入口，停掉 Cloudflare 定时器并等待在途任务结束，核对 pending 后转移最终账本，再启用 VPS 定时器。本次没有执行这些切换。
