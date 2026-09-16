@@ -1,0 +1,13 @@
+🩵🚀 【ChatGPT / Codex】Custom GPT 将迁到 Plugins
+
+官方计划退役 Custom GPT，迁移路径是 Plugins（可复用指令 + 已连接应用）。
+
+Enterprise 规划节点（可能调整）：
+• ~9/17 迁移体验目标上线
+• ~9/25 停新建
+• ~12/11 停运行
+
+现有 GPT 在退役前仍可用。先盘点要保留的工作流，迁移后测权限与 Actions。
+
+说明：https://help.openai.com/en/articles/6825453-chatgpt-release-notes
+FAQ：https://help.openai.com/en/articles/8554407-gpts-faq

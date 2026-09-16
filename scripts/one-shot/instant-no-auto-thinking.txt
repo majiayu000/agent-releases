@@ -1,0 +1,7 @@
+🩵🚀 【ChatGPT】Plus / Pro 取消 Instant 自动切 Thinking
+
+全球退役「Instant → Thinking」自动升档。要更深推理，请在模型选择器里手动选。
+
+网页端 Higher intelligence 开关同步移除；安全相关场景仍可能自动切换。
+
+说明：https://help.openai.com/en/articles/6825453-chatgpt-release-notes
