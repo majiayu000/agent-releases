@@ -30,13 +30,17 @@ export class SqliteDatabase implements PublicationDatabase {
   }
 }
 
-// This deployment is deliberately preview-only. Even DRY_RUN=false cannot enable X.
+// Preview is the default. Publishing requires an explicit CLI flag, not an env toggle.
 if (import.meta.main) {
   const args = process.argv.slice(2);
-  if (args.length !== 1) throw new Error("Usage: bun run src/vps.ts /absolute/path/to/snapshot.sqlite (preview only)");
-  const connection = new Database(args[0]!, { readonly: true, strict: true });
+  if (args.length < 1 || args.length > 2 || (args.length === 2 && args[1] !== "--publish")) {
+    throw new Error("Usage: bun run src/vps.ts /absolute/path/to/state.sqlite [--publish]");
+  }
+  const preview = args[1] !== "--publish";
+  const connection = new Database(args[0]!, { readonly: preview, readwrite: !preview, create: false, strict: true });
   try {
-    await runPublisher(new SqliteDatabase(connection), true);
+    await runPublisher(new SqliteDatabase(connection), preview);
+    console.log(`[complete] mode=${preview ? "preview" : "publish"}`);
   } finally {
     connection.close();
   }

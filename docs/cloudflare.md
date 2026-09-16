@@ -1,6 +1,8 @@
 # Cloudflare 发布器
 
-一个定时 Worker + 一个 D1 数据库，复用现有版本解析、过滤、中文生成和 X OAuth 客户端。没有公开 HTTP 发帖接口、队列或自动重发。当前 `wrangler.toml` 为正式模式 `DRY_RUN="false"`，2026-09-10 已部署到账号中的 `agent-releases` Worker。D1 ID 为 `44d46d28-655b-433e-9822-abdd171ec9b0`，旧 hourly 工作流已停用并移除。新环境首次部署必须先设 DRY_RUN=true。
+> 历史说明：2026-09-16 切换至 [VPS 发布器](vps.md)。当前 Cloudflare cron 为空，`DRY_RUN="true"`，D1 仅保留切换快照。以下正式发布操作不可直接用于当前线上环境。
+
+原部署为一个定时 Worker + 一个 D1 数据库，复用现有版本解析、过滤、中文生成和 X OAuth 客户端。没有公开 HTTP 发帖接口、队列或自动重发。迁移前 `wrangler.toml` 为正式模式 `DRY_RUN="false"`，2026-09-10 已部署到账号中的 `agent-releases` Worker。D1 ID 为 `44d46d28-655b-433e-9822-abdd171ec9b0`，旧 hourly 工作流已停用并移除。新环境首次部署必须先设 DRY_RUN=true。
 
 ## 状态与并发
 

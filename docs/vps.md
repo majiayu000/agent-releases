@@ -1,34 +1,52 @@
-# AaITR VPS 预览部署
+# AaITR VPS 发布器
 
-此部署只做预览，正式发布仍由 Cloudflare Worker 执行。VPS 不配置 X 凭据、不启用发布定时器。
+正式入口为 `agent-releases.service`，由 `agent-releases.timer` 每小时第 17 分钟触发。Cloudflare 已关闭调度并保持 `DRY_RUN=true`；D1 是切换时的历史快照，不再是实时账本。
 
 - SSH：`aaltr-us`
-- 应用：`/opt/agent-releases-preview/app`
-- Bun：`/opt/agent-releases-preview/bin/bun`，与 CI 一致固定为 1.3.14；此 VPS 无 AVX2，使用官方 `bun-linux-x64-baseline` 构建并核对下载 SHA-256
-- 只读账本快照：`/var/lib/agent-releases-preview/snapshot.sqlite`
-- 手动服务：`agent-releases-preview.service`，以 `agentrelease` 用户执行一次后退出
-- 模型配置：`/etc/agent-releases-preview.env`，沿用 GitHub Actions Secrets 中的端点、密钥和 `glm-5.3-flash`，root 所有、权限 0600
+- 应用：`/opt/agent-releases/app`
+- Bun：`/opt/agent-releases/bin/bun`，固定 1.3.14；此 VPS 无 AVX2，使用官方 baseline 构建并核对 SHA-256
+- 实时账本：`/var/lib/agent-releases/state.sqlite`，`agentrelease` 所有、权限 0600
+- 凭据：`/etc/agent-releases.env`，root 所有、权限 0600，由 systemd 加载
+- 模型：沿用 GitHub Secrets 中的端点、密钥和 `glm-5.3-flash`
+- 服务以 `agentrelease` 用户运行，仅状态目录可写，单次超时 10 分钟
 
-## 手动预览
+## 日常操作
+
+```sh
+ssh aaltr-us 'systemctl list-timers agent-releases.timer --no-pager'
+ssh aaltr-us 'journalctl -u agent-releases.service -n 80 --no-pager'
+# 暂停后等待正在执行的服务完成，再维护账本
+ssh aaltr-us 'systemctl stop agent-releases.timer'
+ssh aaltr-us 'systemctl show agent-releases.service -p ActiveState -p SubState -p Result'
+# 恢复调度
+ssh aaltr-us 'systemctl start agent-releases.timer'
+```
+
+`oneshot` 服务执行成功后会变为 inactive，这是正常状态。查看 `Result=success`、退出码和 `[complete] mode=publish` 日志判断本轮是否成功。timer 保持 active/waiting；宕机恢复后补一次检查，不会补发所有历史版本。
+
+发现 pending 时停发并核对 X 时间线。已发送的记录应补全 tweet ID、标记 posted 并推进对应游标；只有确定未发送才可清理该 pending。不要仅凭超时就删除记录或重试。人工发帖也必须同步实时账本。迁移或备份账本时先停 timer 并确认 service 已结束，避免复制过程中有写入。
+
+## 只读预览
+
+`src/vps.ts` 默认以 SQLite readonly 打开已有账本，只有显式 `--publish` 才允许发布；环境变量不能切换这个入口的模式。缺失账本、参数错误、来源/模型失败、未决 pending 都明确失败。预览不写游标、不创建 pending、不调用 X。
+
+独立预览部署仍保留在 `/opt/agent-releases-preview`，快照 `/var/lib/agent-releases-preview/snapshot.sqlite`，配置 `/etc/agent-releases-preview.env` 只有模型凭据，无 X 凭据。它没有 timer，快照不会自动更新，历史草稿测试使用另一个副本。
 
 ```sh
 ssh aaltr-us 'systemctl start agent-releases-preview.service'
 ssh aaltr-us 'journalctl -u agent-releases-preview.service -n 50 --no-pager'
 ```
 
-入口始终传入预览模式，并以 SQLite readonly 打开已经存在的数据库。即使环境变量 `DRY_RUN=false` 也不会启用发布。预览不初始化或修改游标，不创建 pending，不调用 X。参数错误、来源/模型失败、未决 pending 都以非零状态退出。
-
-账本必须从 D1 重新获取；这是检查时的快照，Cloudflare 后续发布不会同步过来。对历史版本做草稿测试时使用单独的数据库副本，不修改原快照。模型密钥只用于生成中文，不需要 X 发帖密钥。
-
-## 本地验证
+## 验证与切换
 
 ```sh
+bun install --frozen-lockfile
 bun run check
 bun run preview:vps /absolute/path/to/snapshot.sqlite
 ```
 
-`src/vps.test.ts` 使用真实 SQLite 和封闭网络替身，X 调用被替身替换。覆盖只读预览、持久化意图、防重复、未知发送结果、事务回滚、重叠执行和每日上限。原 workerd/D1 集成测试继续验证 Worker。
+SQLite 测试使用真实临时数据库和封闭网络替身，覆盖只读预览、发布前持久化、重复执行、未知发送结果、事务回滚、并发、每日上限、缺失凭据和缺失账本。原 workerd/D1 集成测试继续验证 Worker。
 
-2026-09-16 已在 VPS 对四个来源执行真实 `smoke:llm`，全部生成完整中文草稿并通过正文校验，合计约 18 秒。模型配置通过临时 Actions 工作流按 VPS 一次性公钥加密传递，只有 VPS 解密；没有复制 X 凭据。
+2026-09-16 在 VPS 对四个来源执行真实 `smoke:llm`，全部生成完整中文草稿，合计约 18 秒。凭据通过临时 Actions 工作流按 VPS 一次性公钥加密传递，仅在 VPS 解密；密文 artifact 和一次性私钥随后删除。
 
-后续若切换正式发布，需要另外启用正式 VPS 入口，停掉 Cloudflare 定时器并等待在途任务结束，核对 pending 后转移最终账本，再启用 VPS 定时器。本次没有执行这些切换。
+正式切换顺序：关闭 Cloudflare cron 并设置预览，确认无在途发布，核对 pending 为零，再导出 D1 最终账本、导入 VPS、运行正式入口并开启 timer。不能同时启用两个发布器。若要切回 Cloudflare，需要先停止 VPS 并把最新 SQLite 账本同步回 D1；直接启用旧 D1 会丢失切换后的发布记录。
