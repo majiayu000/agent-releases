@@ -1,12 +1,13 @@
-/** Live generation check for all three sources. Never calls X or changes publication state. */
+/** Live generation check for all four sources. Never calls X or changes publication state. */
 import { draftModelId } from "./draft-llm.ts";
 import { draftChinesePost } from "./draft.ts";
 import { fetchLatestClaude } from "./sources/claude.ts";
 import { fetchLatestCodex } from "./sources/codex.ts";
+import { fetchLatestCodexApp } from "./sources/codex-app.ts";
 import { fetchLatestGrokBuild } from "./sources/grok-build.ts";
 
 console.log(`smoke-llm model=${draftModelId()}`);
-for (const fetchLatest of [fetchLatestClaude, fetchLatestCodex, fetchLatestGrokBuild]) {
+for (const fetchLatest of [fetchLatestClaude, fetchLatestCodex, fetchLatestCodexApp, fetchLatestGrokBuild]) {
   const t0 = Date.now();
   try {
     const release = await fetchLatest();
