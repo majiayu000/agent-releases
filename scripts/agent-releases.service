@@ -1,0 +1,20 @@
+[Unit]
+Description=Agent releases publisher
+After=network.target
+
+[Service]
+Type=oneshot
+User=agentrelease
+Group=agentrelease
+WorkingDirectory=/opt/agent-releases/app
+Environment=PATH=/opt/agent-releases/bin:/usr/bin:/bin
+EnvironmentFile=/etc/agent-releases.env
+ExecStart=/opt/agent-releases/bin/bun run src/vps.ts /var/lib/agent-releases/state.sqlite --publish
+TimeoutStartSec=10min
+StateDirectory=agent-releases
+StateDirectoryMode=0700
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+UMask=0077

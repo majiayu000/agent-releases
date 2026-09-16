@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as draft from "./draft.ts";
@@ -120,8 +120,24 @@ test("SQLite daily limit prevents a sixth mock X call", async () => {
   expect(sent).toBe(0);
 });
 
-test("VPS CLI refuses publish arguments before accessing database or network", () => {
-  const result = Bun.spawnSync([process.execPath, new URL("./vps.ts", import.meta.url).pathname, join(dir, "state.sqlite"), "--publish"]);
+test("VPS CLI rejects unknown arguments before accessing database or network", () => {
+  const result = Bun.spawnSync([process.execPath, new URL("./vps.ts", import.meta.url).pathname, join(dir, "state.sqlite"), "--pubish"]);
   expect(result.exitCode).not.toBe(0);
-  expect(result.stderr.toString()).toContain("preview only");
+  expect(result.stderr.toString()).toContain("Usage:");
+});
+
+test("explicit CLI publication fails before network or reservation when X credentials are absent", () => {
+  const env = { ...process.env };
+  for (const key of ["X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"]) delete env[key];
+  const result = Bun.spawnSync([process.execPath, new URL("./vps.ts", import.meta.url).pathname, join(dir, "state.sqlite"), "--publish"], { env });
+  expect(result.exitCode).not.toBe(0);
+  expect(result.stderr.toString()).toContain("Missing X OAuth");
+  expect(connection.query("SELECT count(*) AS n FROM publications").get()).toEqual({ n: 0 });
+});
+
+test("publication refuses a missing database instead of creating an empty ledger", () => {
+  const result = Bun.spawnSync([process.execPath, new URL("./vps.ts", import.meta.url).pathname, join(dir, "missing.sqlite"), "--publish"]);
+  expect(result.exitCode).not.toBe(0);
+  expect(result.stderr.toString()).toContain("unable to open database file");
+  expect(existsSync(join(dir, "missing.sqlite"))).toBe(false);
 });

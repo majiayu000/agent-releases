@@ -1,0 +1,11 @@
+[Unit]
+Description=Check agent releases hourly
+
+[Timer]
+OnCalendar=*-*-* *:17:00
+AccuracySec=1s
+Persistent=true
+Unit=agent-releases.service
+
+[Install]
+WantedBy=timers.target
