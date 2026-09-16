@@ -14,6 +14,8 @@ Cloudflare Worker `agent-releases` 每小时第 17 分钟检查更新；D1 的 `
 
 ## 验证与维护
 
+AaITR 上另有独立的 [VPS 只读预览部署](docs/vps.md)，用于真实来源与草稿检查，不参与正式发布。
+
 ```sh
 bun install --frozen-lockfile
 bun run check

@@ -1,0 +1,19 @@
+[Unit]
+Description=Agent releases read-only preview (never publishes)
+After=network.target
+
+[Service]
+Type=oneshot
+User=agentrelease
+Group=agentrelease
+WorkingDirectory=/opt/agent-releases-preview/app
+Environment=PATH=/opt/agent-releases-preview/bin:/usr/bin:/bin
+Environment=DRY_RUN=true
+EnvironmentFile=-/etc/agent-releases-preview.env
+ExecStart=/opt/agent-releases-preview/bin/bun run src/vps.ts /var/lib/agent-releases-preview/snapshot.sqlite
+TimeoutStartSec=10min
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+UMask=0077

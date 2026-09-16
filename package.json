@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "preview:vps": "bun run src/vps.ts",
     "start": "bun run dev:cloudflare",
     "check": "tsc --noEmit && bun run test && bun run selfcheck:draft && bun run check:cloudflare",
     "test": "bun test src",
