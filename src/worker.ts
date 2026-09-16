@@ -8,6 +8,17 @@ import { isNotable } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
 import { assertXCredentials, postTweet } from "./twitter.ts";
 
+/** Operations shared by the D1 Worker and the SQLite preview runner. */
+export interface PublicationStatement {
+  bind(...values: unknown[]): PublicationStatement;
+  first<T = Record<string, unknown>>(column?: string): Promise<T | null>;
+  run(): Promise<{ meta: { changes: number } }>;
+}
+export interface PublicationDatabase {
+  prepare(sql: string): PublicationStatement;
+  batch(statements: PublicationStatement[]): Promise<{ meta: { changes: number } }[]>;
+}
+
 interface Env {
   DB: D1Database;
   DRY_RUN: string;
@@ -31,16 +42,9 @@ const sources = [
   { product: "grok_build", latest: fetchLatestGrokBuild, since: fetchGrokBuildSince },
 ] as const;
 const dayOf = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(date);
-const pending = (db: D1Database) => db.prepare("SELECT product, version FROM publications WHERE status = 'pending'").first<{ product: string; version: string }>();
+const pending = (db: PublicationDatabase) => db.prepare("SELECT product, version FROM publications WHERE status = 'pending'").first<{ product: string; version: string }>();
 
-async function run(env: Env): Promise<void> {
-  // nodejs_compat modules read process.env; mirror Worker bindings explicitly.
-  for (const [key, value] of Object.entries(env)) {
-    if (typeof value === "string" && value && key !== "DRY_RUN") process.env[key] = value;
-  }
-  if (env.DRY_RUN !== "true" && env.DRY_RUN !== "false") throw new Error("Set DRY_RUN explicitly to true or false");
-  const preview = env.DRY_RUN === "true";
-  const db = env.DB;
+export async function runPublisher(db: PublicationDatabase, preview: boolean): Promise<void> {
   const unresolved = await pending(db);
   if (unresolved) throw new Error(`Reconcile pending X outcome before continuing: ${unresolved.product} ${unresolved.version}`);
   if (!preview) assertXCredentials();
@@ -117,5 +121,13 @@ async function run(env: Env): Promise<void> {
 }
 
 export default {
-  async scheduled(event, env) { event.noRetry(); await run(env); },
+  async scheduled(event, env) {
+    event.noRetry();
+    // nodejs_compat clients read process.env; mirror Worker bindings explicitly.
+    for (const [key, value] of Object.entries(env)) {
+      if (typeof value === "string" && value && key !== "DRY_RUN") process.env[key] = value;
+    }
+    if (env.DRY_RUN !== "true" && env.DRY_RUN !== "false") throw new Error("Set DRY_RUN explicitly to true or false");
+    await runPublisher(env.DB, env.DRY_RUN === "true");
+  },
 } satisfies ExportedHandler<Env>;
