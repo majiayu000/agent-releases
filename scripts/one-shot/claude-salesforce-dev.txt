@@ -1,0 +1,11 @@
+🟣🚀 【Claude Code】Salesforce Development 插件上线
+
+Salesforce 官方插件：在 DX 项目里做 Apex / metadata / 部署 / 安全审查等，40+ skills，可走 SF CLI 与 Salesforce MCP。
+
+安装示例：
+`claude plugin install salesforce-development@claude-plugins-official`
+
+同日生态：Salesforce in Claude（销售侧 37 skills）公测，偏 CRM；开发向优先看上面这条。
+
+插件：https://claude.com/plugins/salesforce-development
+背景：https://www.salesforce.com/news/stories/aiforce-announcement/
