@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prepare, publish, type Source } from "./index.ts";
 import { appendLedger, dailyPostCount, hasPostedLive, pendingPosts, readLedger } from "./ledger.ts";
+import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
 import { readState, writeState } from "./state.ts";
 import { isNotable, pickBullets } from "./filter.ts";
 import { draftChinesePost, validateChinesePost } from "./draft.ts";
@@ -119,11 +120,11 @@ describe("publication recovery", () => {
   });
 
   test("daily limit counts unique reserved/published versions and does not consume deferred versions", async () => {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < DAILY_PUBLICATION_LIMIT; i++) {
       appendLedger({ ts: now.toISOString(), product: "claude", version: `0.0.${i}`, runId: "old", dryRun: false });
       appendLedger({ ts: now.toISOString(), product: "claude", version: `0.0.${i}`, tweetId: String(i + 1), dryRun: false });
     }
-    expect(dailyPostCount(now)).toBe(5);
+    expect(dailyPostCount(now)).toBe(DAILY_PUBLICATION_LIMIT);
     const plan = await prepare(true, "live", [source()], draft, now);
     expect(plan.posts).toEqual([]);
     expect(readState("claude")).toBe("1.0.0");
