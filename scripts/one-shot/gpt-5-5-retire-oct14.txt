@@ -1,0 +1,9 @@
+🩵🚀 【ChatGPT / Codex】GPT-5.5 将于 10 月 14 日退役
+
+ChatGPT、ChatGPT Work、Codex 各计划（含消费 / Business / Enterprise / Edu）将在 2026-10-14 下线 GPT-5.5；不影响 OpenAI API。
+
+迁徙建议：
+• Codex（ChatGPT 登录）改用 `gpt-5.6-sol`（GPT-5.6 Sol）
+• 检查 workspace 默认、自定义 Agent、定时任务与脚本里的模型名
+
+官方 changelog：https://developers.openai.com/codex/changelog

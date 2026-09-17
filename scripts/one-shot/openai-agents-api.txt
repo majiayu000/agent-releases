@@ -1,0 +1,13 @@
+🩵🚀 【OpenAI】Agents API 公测上线
+
+把 Codex 同款 harness 开放给开发者：OpenAI 托管编排、长会话、上下文压缩与恢复；你负责能力与沙箱落点。
+
+要点：
+• 全体开发者可公测；无单独 Agents API 费，按模型 token / 工具 / 托管容器计
+• 请求需 `OpenAI-Beta: agents=v1`；SDK 走 `beta.agents`
+• 环境可选 `openai_hosted`，或自建 / 对接 Blaxel、E2B、Modal、Vercel、Cloudflare 等
+• 支持工具、MCP、子 Agent 与 durable sessions
+
+公告：https://openai.com/index/introducing-the-agents-api/
+文档：https://developers.openai.com/api/docs/guides/agents-api/overview
+社区：https://community.openai.com/t/introducing-the-agents-api-and-hosted-sandboxes/1396481
