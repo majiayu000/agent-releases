@@ -1,0 +1,12 @@
+🟣🚀 【Claude】Dynamic Workflows 正式 GA
+
+Claude Code 动态工作流现已全面可用。一次会话里动态写编排脚本，并行拉起数十到数百个子代理，结果先自检再给你。
+
+怎么用
+🛠️ CLI / Desktop / VS Code 扩展（Pro、Max、Team、Enterprise），以及 Claude API、Bedrock、Vertex、Foundry
+⚡ 直接让 Claude「Create a workflow」，或打开 ultracode（effort=xhigh，自动决定何时走工作流）
+📦 Max / Team / Enterprise 与 API 默认开；Pro 在 /config 打开
+
+用量会明显高于普通会话，首次触发会先确认。适合全仓排查、大迁移、高成本决策前的对抗验证。
+
+官方：https://claude.com/blog/introducing-dynamic-workflows-in-claude-code
