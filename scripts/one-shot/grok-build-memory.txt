@@ -1,10 +1,8 @@
 ⚫🚀 【Grok】Grok Build 跨会话 Memory 正式上线
-
-会话结束后后台记笔记，下次进同一项目会先读相关 topic 再动手。官方产品说明已放出。
-
-🧠 记项目约定、决策理由和持久事实，不记任务状态、临时结论和密钥
-📁 按项目分仓，另有全局偏好，笔记是可编辑的 markdown
-🔍 `/memory` 浏览现有笔记，`/dream` 把零散观察收成 topic 文件
-🆕 只对新会话生效，`/new` 或重新开 `grok` 后，完成首轮就会开始记
-
-https://x.ai/news/grok-build-memory
+🧠 会话结束后后台记笔记，下次进同一项目会先读相关 topic 再动手
+📁 记约定、决策与持久事实；不记任务状态、临时结论和密钥
+🔍 `/memory` 浏览笔记，`/dream` 收成 topic；按项目分仓，另有全局偏好
+🆕 只对新会话生效：`/new` 或重开 `grok`，首轮完成后开始记
+详情在串里 ↓
+---
+官方：https://x.ai/news/grok-build-memory
