@@ -1,0 +1,20 @@
+🩵🚀 【ChatGPT / Codex】Zendesk & OneNote 插件上线（Beta）
+
+要点：
+
+• Plugin 目录新增 Zendesk、OneNote 两个 OpenAI 官方插件，ChatGPT 与 Codex 都可用
+• Zendesk：查工单与客户历史、搜知识库、起草回复；连自己的 Zendesk 账号，权限不外扩
+• OneNote：找笔记、汇总决策与待办，并支持创建/更新笔记（视账号与 Microsoft 权限）
+• 托管工作区可能要管理员先放开插件及其依赖 App
+
+谁受影响：
+
+• 用 ChatGPT / Codex 做客服或笔记工作流的个人与团队；可用性因计划、区域与管理员策略而异
+
+怎么验：
+
+• 在 Plugins 装 OpenAI 出品的 Zendesk / OneNote，完成账号授权后在对话或 Codex Sources → Use plugins 选用
+
+👇 详情请看
+---
+官方：https://help.openai.com/en/articles/20001512-using-zendesk-in-chatgpt-and-codex
