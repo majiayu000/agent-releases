@@ -12,7 +12,7 @@ export function assertXCredentials(): void {
   }
 }
 
-export async function postTweet(text: string): Promise<string> {
+export async function postTweet(text: string, replyToId?: string): Promise<string> {
   assertXCredentials();
   const appKey = process.env.X_API_KEY!;
   const appSecret = process.env.X_API_SECRET!;
@@ -25,7 +25,11 @@ export async function postTweet(text: string): Promise<string> {
     accessToken,
     accessSecret,
   });
+  const body: { text: string; reply?: { in_reply_to_tweet_id: string } } = { text };
+  if (replyToId) {
+    body.reply = { in_reply_to_tweet_id: replyToId };
+  }
   // SDK request timeout. A timeout is an unknown X outcome: pending stays, no auto-retry.
-  const posted = await client.v2.post<TweetV2PostTweetResult>("tweets", { text }, { timeout: X_REQUEST_TIMEOUT_MS });
+  const posted = await client.v2.post<TweetV2PostTweetResult>("tweets", body, { timeout: X_REQUEST_TIMEOUT_MS });
   return posted.data.id;
 }
