@@ -1,9 +1,19 @@
 🩵🚀 【Codex】GPT-5.3-Codex-Spark 退役
 
-OpenAI 产品侧已宣布下线该高速预览模型；多端已出现不可选 / unsupported。
+要点：
 
-建议改用：
-• GPT-5.3-Codex（编码主线）
-• 或 GPT-5.6 Sol / GPT-6 Astra（按任务选）
+• 高速预览模型 GPT-5.3-Codex-Spark 已于 2026-09-14 退役
+• ChatGPT 桌面、Codex CLI、IDE 扩展中均不再可选
 
-社区说明：https://community.openai.com/t/the-gpt-5-3-codex-spark-model-is-not-supported-when-using-codex-with-a-chatgpt-account/1397757
+谁受影响：
+
+• 仍写着 `gpt-5.3-codex-spark` 的配置、自定义 Agent 与脚本
+
+怎么验：
+
+• 改用当前推荐模型；要更快响应可看 Fast mode
+• 更新已保存的模型选择后再开新会话确认
+
+👇 详情请看
+---
+官方：https://developers.openai.com/codex/changelog
