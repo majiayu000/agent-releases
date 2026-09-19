@@ -1,12 +1,16 @@
 🩵🚀 【ChatGPT / Codex】Deep Research 进 Work / Codex
 
-官方确认：Work 与 Codex 已可用 Deep Research。跨网页、本地文件、已授权应用做多步调研，产出带引用的可编辑文档。
-
 要点：
-• 对话里输入 @Deep Research，或直接说要深度调研
-• 可边跑边纠正方向；可要文档 / 演示文稿 / 表格 / Site
+
+• Work 与 Codex 已可用 Deep Research，跨网页、本地文件与已授权应用做多步调研
+• 对话里 @Deep Research，或直接说要深度调研；可边跑边纠正方向
+• 产出带引用的可编辑文档 / 演示文稿 / 表格 / Site
 • 走 Work/Codex 额度或 credits，不扣 Chat 里单独的 Deep Research 配额
+
+谁受影响：
+
 • Plus / Pro / Business / Enterprise / Edu（需有 Work）；web / 桌面 / iOS / Android
 
-说明：https://help.openai.com/en/articles/10500283-deep-research
-Release notes：https://help.openai.com/en/articles/6825453-chatgpt-release-notes
+👇 详情请看
+---
+官方：https://help.openai.com/en/articles/10500283-deep-research

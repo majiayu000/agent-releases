@@ -1,12 +1,15 @@
 🩵🚀 【Codex】Codex for Open Source 开放申请
 
-面向关键开源项目的核心 / 主要维护者。入选可获：
+要点：
 
-• 6 个月 ChatGPT Pro（含 Codex）
-• 条件性 Codex Security 访问
-• API credits（可用于 PR review、维护自动化、发版等工作流）
+• 面向关键开源项目的核心 / 主要维护者
+• 入选可获 6 个月 ChatGPT Pro（含 Codex）
+• 另有条件性 Codex Security 访问与 API credits（PR review、维护自动化、发版等）
 
-滚动审核，不保证人人入选。可自荐或提名其他维护者。
+谁受影响：
 
-申请：https://openai.com/form/codex-for-oss/
-说明：https://developers.openai.com/community/codex-for-oss/
+• 可自荐或提名其他维护者；滚动审核，不保证人人入选
+
+👇 详情请看
+---
+官方：https://developers.openai.com/community/codex-for-oss/

@@ -3,6 +3,6 @@
 📈 可产出可编辑交互看板，也能接到 Tableau / Power BI 等
 🔐 沿用现有权限；管理员在 Plugins 里放开数据源
 👉 装好后对话里 @Data 开聊
-详情在串里 ↓
+👇 详情请看
 ---
 官方：https://openai.com/index/put-data-to-work/
