@@ -14,6 +14,6 @@
 • 改用当前推荐模型；要更快响应可看 Fast mode
 • 更新已保存的模型选择后再开新会话确认
 
-详情在串里 ↓
+👇 详情请看
 ---
 官方：https://developers.openai.com/codex/changelog
