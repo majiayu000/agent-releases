@@ -10,6 +10,6 @@
 
 • 可自荐或提名其他维护者；滚动审核，不保证人人入选
 
-详情在串里 ↓
+👇 详情请看
 ---
 官方：https://developers.openai.com/community/codex-for-oss/
