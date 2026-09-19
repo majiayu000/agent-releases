@@ -1,18 +1,18 @@
-【Claude】Claude Code 支持 AGENTS.md 与账号插件同步
+【Claude】Claude Code 现可读 AGENTS.md
 
 要点：
 
-• 项目没有 `CLAUDE.md` 时，Claude Code 现在会读取 `AGENTS.md` 作为项目指令
-• 可在 `/config` 的「Project instructions」中调整这项行为
-• Claude.ai 登录的终端会同步账号启用的 Skills 与 plugins；安装插件时也可用 `--marketplace` 一起添加来源
+• 项目没有 `CLAUDE.md` 时，Claude Code 会改读 `AGENTS.md` 作为项目指令
+• 可在 `/config` 的「Project instructions」里调整这项行为
+• 暂未覆盖 Bedrock、Vertex、Foundry
 
 谁受影响：
 
-• 把 AGENTS.md 作为跨工具协作规范、或使用 Claude.ai 账号插件 / Skills 的 Claude Code 用户
+• 用 AGENTS.md 做跨工具协作规范、或还没写 CLAUDE.md 的 Claude Code 用户
 
 怎么验：
 
-• 在没有 CLAUDE.md 的项目放置 AGENTS.md，运行 `/config` 查看；再检查 `/skills` 与 `/plugin`
+• 在没有 CLAUDE.md 的项目放一份 AGENTS.md，打开 `/config` 看 Project instructions
 
 👇 详情请看
 ---
