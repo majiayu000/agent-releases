@@ -1,0 +1,15 @@
+【ChatGPT】插件支持连接多个账号
+
+要点：
+
+• ChatGPT 插件现在支持连接多个账号，能力从 Gmail、Google Calendar、Google Contacts 扩展到更多插件
+• 个人与工作账号可以放在同一对话里使用，跨账号查邮件、合并日程或处理任务
+• Web、移动端与桌面端均可用；实际可用性仍受计划、地区和工作区设置影响
+
+谁受影响：
+
+• 同时使用个人与工作账号、需要在一个对话里处理多套业务数据的 ChatGPT 插件用户
+
+👇 详情请看
+---
+官方：https://help.openai.com/en/articles/6825453-chatgpt-release-notes
