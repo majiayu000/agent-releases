@@ -1,0 +1,19 @@
+【Claude】Claude Code 现可读 AGENTS.md
+
+要点：
+
+• 项目没有 `CLAUDE.md` 时，Claude Code 会改读 `AGENTS.md` 作为项目指令
+• 可在 `/config` 的「Project instructions」里调整这项行为
+• 暂未覆盖 Bedrock、Vertex、Foundry
+
+谁受影响：
+
+• 用 AGENTS.md 做跨工具协作规范、或还没写 CLAUDE.md 的 Claude Code 用户
+
+怎么验：
+
+• 在没有 CLAUDE.md 的项目放一份 AGENTS.md，打开 `/config` 看 Project instructions
+
+👇 详情请看
+---
+官方：https://github.com/anthropics/claude-code/releases/tag/v2.1.277
