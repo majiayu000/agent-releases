@@ -7,6 +7,7 @@ import type { Product, Release } from "./sources/types.ts";
 import { isNotable } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
 import { assertXCredentials, postTweet } from "./twitter.ts";
+import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
 
 /** Operations shared by the D1 Worker and the SQLite preview runner. */
 export interface PublicationStatement {
@@ -52,7 +53,7 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
   // Finish all source reads and drafts before modifying state or calling X.
   const plans: { product: Product; previous: string | null; cursor: string; release?: Release; text?: string }[] = [];
   const used = await db.prepare("SELECT count(*) AS n FROM publications WHERE day = ?").bind(dayOf(new Date())).first<number>("n");
-  let remaining = Math.max(0, 5 - (used ?? 0));
+  let remaining = Math.max(0, DAILY_PUBLICATION_LIMIT - (used ?? 0));
   for (const source of sources) {
     const previous = await db.prepare("SELECT version FROM cursors WHERE product = ?").bind(source.product).first<string>("version");
     if (previous === null) {
@@ -92,7 +93,7 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
     const reservation = await db.prepare(`INSERT INTO publications (product, version, status, text, reserved_at, day)
       SELECT ?, ?, 'pending', ?, ?, ?
       WHERE NOT EXISTS (SELECT 1 FROM publications WHERE status = 'pending')
-        AND (SELECT count(*) FROM publications WHERE day = ?) < 5
+        AND (SELECT count(*) FROM publications WHERE day = ?) < ${DAILY_PUBLICATION_LIMIT}
         AND EXISTS (SELECT 1 FROM cursors WHERE product = ? AND version = ?)
       ON CONFLICT (product, version) DO NOTHING`)
       .bind(plan.product, release.version, text!, reservedAt.toISOString(), day, day, plan.product, plan.previous).run();

@@ -40,7 +40,7 @@ Not affiliated with Anthropic / OpenAI / xAI
 
 **中文盘**：每周 1 条小红书（同一更新讲「对开发者意味着什么」+ 出处）。
 
-**禁止**：买粉、互赞群、大小号对刷、一天 >5 条、Fixed-only。
+**禁止**：买粉、互赞群、大小号对刷、一天 >12 条、Fixed-only。
 
 ## 第 3–4 周：记忆点
 大版本时加 1 条人工帖：`本周 Agent 雷达` 或 `【对比】Claude vs Codex…`  
@@ -77,4 +77,4 @@ Not affiliated with Anthropic / OpenAI / xAI
 2. 接入 Grok Bot 粗糙源
 3. 每周日「本周雷达」草稿 routine（只审不发）
 
-修复后的恢复步骤与上线核对见 [README](../README.md)。每日最多 5 个版本、每次每产品最多 1 条；Cloudflare 定时配置传播可能延迟。
+修复后的恢复步骤与上线核对见 [README](../README.md)。每日最多 12 个版本、每次每产品最多 1 条；Cloudflare 定时配置传播可能延迟。

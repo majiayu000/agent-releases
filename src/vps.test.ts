@@ -8,6 +8,7 @@ import * as twitter from "./twitter.ts";
 import type { Release } from "./sources/types.ts";
 import { runPublisher } from "./worker.ts";
 import { SqliteDatabase } from "./vps.ts";
+import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
 
 const schema = readFileSync(new URL("../migrations/0001_publications.sql", import.meta.url), "utf8");
 const release: Release = {
@@ -113,9 +114,9 @@ test("overlapping SQLite publishers claim a version only once", async () => {
   expect(connection.query("SELECT count(*) AS n FROM publications").get()).toEqual({ n: 1 });
 });
 
-test("SQLite daily limit prevents a sixth mock X call", async () => {
+test("SQLite daily limit prevents a mock X call after the cap", async () => {
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
-  for (let i = 0; i < 5; i++) connection.query("INSERT INTO publications (product,version,status,text,reserved_at,day,tweet_id) VALUES ('claude',?,'posted','history',?,?,?)").run(`0.0.${i}`, new Date().toISOString(), day, String(i));
+  for (let i = 0; i < DAILY_PUBLICATION_LIMIT; i++) connection.query("INSERT INTO publications (product,version,status,text,reserved_at,day,tweet_id) VALUES ('claude',?,'posted','history',?,?,?)").run(`0.0.${i}`, new Date().toISOString(), day, String(i));
   await runPublisher(db, false);
   expect(sent).toBe(0);
 });

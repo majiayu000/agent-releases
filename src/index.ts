@@ -9,6 +9,7 @@ import { appendLedger, dailyPostCount, hasPostedLive, pendingPosts, postingDay }
 import { isNotable } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
 import { postTweet } from "./twitter.ts";
+import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
 
 export type Source = {
   product: Product;
@@ -40,7 +41,7 @@ export async function prepare(
     throw new Error(`Unresolved X publication; reconcile before retry: ${pending.map(p => `${p.product} ${p.version}`).join(", ")}`);
   }
   const plan: Plan = { runId, day: postingDay(now), posts: [] };
-  const remaining = Math.max(0, 5 - dailyPostCount(now));
+  const remaining = Math.max(0, DAILY_PUBLICATION_LIMIT - dailyPostCount(now));
   const updates: { product: Product; version: string }[] = [];
   const errors: string[] = [];
   for (const source of sources) {
