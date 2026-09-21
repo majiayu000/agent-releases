@@ -11,6 +11,8 @@ const bundle = readFileSync(new URL('../.worker-build/worker.js', import.meta.ur
 const schema = readFileSync(new URL('../migrations/0001_publications.sql', import.meta.url), 'utf8');
 const products = ['claude', 'codex', 'codex_app', 'grok_build'];
 const day = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+/** Keep in sync with src/limits.ts */
+const DAILY_PUBLICATION_LIMIT = 12;
 
 async function setup(t, { preview = false, failX = false, failSource = false, failDraft = false, missingX = false } = {}) {
   const calls = { tweets: 0, drafts: 0 };
@@ -136,7 +138,7 @@ test('overlapping cron runs cannot send the same version twice', async t => {
 
 test('daily limit is enforced across products and leaves remaining versions for later', async t => {
   const { db, calls, run } = await setup(t);
-  for (let i = 0; i < 4; i++) await db.prepare("INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day) VALUES ('claude',?,'posted','history',?, ?, ?)").bind(`0.0.${i}`, String(i + 1), new Date().toISOString(), day()).run();
+  for (let i = 0; i < DAILY_PUBLICATION_LIMIT - 1; i++) await db.prepare("INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day) VALUES ('claude',?,'posted','history',?, ?, ?)").bind(`0.0.${i}`, String(i + 1), new Date().toISOString(), day()).run();
   assert.equal((await run()).outcome, 'ok');
   assert.equal(calls.tweets, 1);
   assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='codex'").first()).version, 'rust-v1.0.0');
@@ -163,10 +165,10 @@ test('empty database seeds latest versions without posting historical releases',
 
 test('concurrent cron runs cannot exceed the last remaining daily slot', async t => {
   const { db, calls, run } = await setup(t);
-  for (let i = 0; i < 4; i++) await db.prepare("INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day) VALUES ('claude',?,'posted','history',?, ?, ?)").bind(`0.0.${i}`, String(i + 1), new Date().toISOString(), day()).run();
+  for (let i = 0; i < DAILY_PUBLICATION_LIMIT - 1; i++) await db.prepare("INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day) VALUES ('claude',?,'posted','history',?, ?, ?)").bind(`0.0.${i}`, String(i + 1), new Date().toISOString(), day()).run();
   await Promise.all([run(), run(), run()]);
   assert.equal(calls.tweets, 1);
-  assert.equal((await db.prepare('SELECT count(*) AS n FROM publications WHERE day=?').bind(day()).first()).n, 5);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM publications WHERE day=?').bind(day()).first()).n, DAILY_PUBLICATION_LIMIT);
 });
 
 test('ledger import preserves cursors and confirmed IDs, ignores previews and refuses pending', async t => {
