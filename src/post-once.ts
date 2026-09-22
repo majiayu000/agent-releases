@@ -1,5 +1,6 @@
+import { existsSync } from "node:fs";
 import { readFileSync } from "node:fs";
-import { postTweet } from "./twitter.ts";
+import { postTweet, uploadMedia } from "./twitter.ts";
 
 function loadText(): string {
   const fromEnv = process.env.POST_TEXT?.trim();
@@ -23,13 +24,29 @@ function splitThreadParts(body: string): string[] {
   return parts;
 }
 
+function loadMediaPaths(): string[] {
+  const raw = process.env.POST_MEDIA?.trim();
+  if (!raw) return [];
+  const paths = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  for (const p of paths) {
+    if (!existsSync(p)) throw new Error(`POST_MEDIA file missing: ${p}`);
+  }
+  return paths;
+}
+
 const parts = splitThreadParts(loadText());
+const mediaPaths = loadMediaPaths();
+const mediaIds = mediaPaths.length > 0 ? await uploadMedia(mediaPaths) : [];
 let previousId: string | undefined;
 const ids: string[] = [];
-for (const part of parts) {
-  const id = await postTweet(part, previousId);
+for (let i = 0; i < parts.length; i++) {
+  const part = parts[i]!;
+  const attach = i === 0 && mediaIds.length > 0 ? mediaIds : undefined;
+  const id = await postTweet(part, previousId, attach);
   ids.push(id);
-  console.log(`posted ${id}${previousId ? ` (reply to ${previousId})` : ""}`);
+  console.log(
+    `posted ${id}${previousId ? ` (reply to ${previousId})` : ""}${attach ? ` media=${attach.length}` : ""}`,
+  );
   previousId = id;
 }
 if (ids.length > 1) {
