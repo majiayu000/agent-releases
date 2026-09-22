@@ -1,0 +1,17 @@
+【Claude】X 热议：Opus 5.5 落地后大家在吵什么
+
+要点：
+
+• 官方口径：多数工作对标 Fable 5.1，典型负载成本比 Opus 5 约低 40%；API `claude-opus-5-5`，$4/$20，缓存读 $0.20
+• 圈里最响的两件事：更便宜的「能干活」Opus，以及 Agent / 编码长任务更省 token、更省步数
+• Anthropic 官号发帖后迅速扩散；日文区也有「Fable 级性能、成本砍四成」的同步解读
+• 发布前泄漏价与正式价基本对上；发布后讨论重心从「有没有」转到「该不该把日常 Agent 默认切过去」
+• Claude Code 2.1.280 已把 Opus 5.5 设为默认 Opus（版本雷达侧若还没发，这是另一条线）
+
+谁受影响：
+
+• Claude Code / API / 订阅端做长任务、迁移、Agent 编排的人
+
+👇 详情请看
+---
+官方：https://www.anthropic.com/claude-opus-5-5
