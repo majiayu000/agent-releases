@@ -1,6 +1,7 @@
 name: post X once
 
 # One-shot manual publisher for @agentreleases. Prefer POST via file for long text.
+# Optional media: comma-separated repo-relative image paths (attached to root tweet only).
 on:
   workflow_dispatch:
     inputs:
@@ -9,6 +10,11 @@ on:
         required: true
         type: string
         default: "scripts/one-shot/plugin-eval-long.txt"
+      media:
+        description: "Optional comma-separated image paths (root tweet only, max 4)"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: agent-releases
@@ -31,6 +37,7 @@ jobs:
       - name: Post once to X
         env:
           POST_FILE: ${{ inputs.file }}
+          POST_MEDIA: ${{ inputs.media }}
           X_API_KEY: ${{ secrets.X_API_KEY }}
           X_API_SECRET: ${{ secrets.X_API_SECRET }}
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
