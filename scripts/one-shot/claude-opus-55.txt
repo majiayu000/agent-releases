@@ -1,0 +1,17 @@
+【Claude】Claude Opus 5.5 正式发布
+
+要点：
+
+• Claude 5.5 家族首发；多数工作表现对标 Fable 5.1，典型负载成本比 Opus 5 约低 40%
+• API：`claude-opus-5-5`；输入 / 输出 $4 / $20 每百万 token；缓存读 $0.20（比 Opus 5 低约 60%）
+• 输出更快约 30%+；Claude Code / Claude Platform 可开 Fast mode（约 2.5×，价格翻倍）
+• 全平台可用（含 AWS / Google Cloud / Azure）；Pro / Max / Team 提高五小时用量上限，并提供可自选时机的限流重置
+• Sonnet 5.5、Haiku 5.5 随后几周跟进
+
+谁受影响：
+
+• Claude Code、Claude API、订阅端（Pro / Max / Team）日常编码与 Agent 工作流
+
+👇 详情请看
+---
+官方：https://www.anthropic.com/claude-opus-5-5
