@@ -1,0 +1,22 @@
+【Codex】GPT-6 Sol / Luna 登陆 Codex 与 ChatGPT Work
+
+要点：
+
+• OpenAI 推出 GPT-6 Sol 与 GPT-6 Luna，承接 Astra 能力，面向规模化日常工作
+• Sol 侧重复杂编码与 Agent 工作流；Luna 侧重聚焦、高吞吐任务
+• 正在向 Plus / Pro / Business / Enterprise / Edu 在 Codex 与 ChatGPT Work 推送；标准 Chat 暂不提供
+• CLI 可用 `/model`，或 `codex --model gpt-6-sol` / `codex --model gpt-6-luna`
+• Free / Go 可在桌面端试用 Luna；Enterprise 需管理员开启新模型
+• 相对 GPT-5.6 前代，token 价更低（以官方 Pricing / changelog 为准）
+
+谁受影响：
+
+• Codex CLI / App、ChatGPT Work 用户；仍写着旧模型名的 workspace 默认、自定义 Agent 与脚本
+
+怎么验：
+
+• 模型选择器是否出现 Sol / Luna；CLI 试 `/model` 或上述 `--model` 开一轮
+
+👇 详情请看
+---
+官方：https://developers.openai.com/codex/changelog
