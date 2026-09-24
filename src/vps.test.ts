@@ -49,15 +49,20 @@ beforeEach(() => {
   const spies = [
     spyOn(draft, "draftChinesePost").mockResolvedValue("🔧 新增自定义命令，方便复用常用操作"),
     spyOn(twitter, "assertXCredentials").mockImplementation(() => {}),
-    spyOn(twitter, "postTweet").mockImplementation(async text => {
+    spyOn(twitter, "postTweet").mockImplementation(async (text, replyToId?) => {
       // Read through a second connection to prove reservation durability before X.
       const observer = new Database(join(dir, "state.sqlite"), { readonly: true });
       try {
-        expect(observer.query("SELECT text FROM publications WHERE status='pending'").get()).toEqual({ text });
+        if (!replyToId) {
+          expect(observer.query("SELECT text FROM publications WHERE status='pending'").get()).toEqual({ text });
+          expect(text).not.toMatch(/https?:\/\//i);
+        } else {
+          expect(text).toBe(`官方：${release.url}`);
+        }
       } finally { observer.close(); }
       sent++;
       if (failure === "x") throw new Error("X response lost");
-      return "123456";
+      return replyToId ? "123457" : "123456";
     }),
   ];
   restores = spies.map(spy => () => spy.mockRestore());
@@ -82,11 +87,11 @@ test("VPS preview generates a draft against read-only SQLite without X or state 
 
 test("SQLite commits a reservation before mock X, completes atomically and rejects replay", async () => {
   await runPublisher(db, false);
-  expect(sent).toBe(1);
+  expect(sent).toBe(2);
   expect(connection.query("SELECT status,tweet_id FROM publications").get()).toEqual({ status: "posted", tweet_id: "123456" });
   connection.query("UPDATE cursors SET version='1.0.0' WHERE product='claude'").run();
   await runPublisher(db, false);
-  expect(sent).toBe(1);
+  expect(sent).toBe(2);
   expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.1" });
 });
 
@@ -103,14 +108,14 @@ test("unknown mock X outcome survives reopening SQLite and blocks later runs", a
 test("completion failure rolls back posted status and keeps pending after mock X success", async () => {
   connection.exec("CREATE TRIGGER fail_completion BEFORE UPDATE ON cursors BEGIN SELECT RAISE(ABORT, 'completion failed'); END");
   await expect(runPublisher(db, false)).rejects.toThrow("completion failed");
-  expect(sent).toBe(1);
+  expect(sent).toBe(2);
   expect(connection.query("SELECT status,tweet_id FROM publications").get()).toEqual({ status: "pending", tweet_id: null });
   expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.0" });
 });
 
 test("overlapping SQLite publishers claim a version only once", async () => {
   await Promise.allSettled([runPublisher(db, false), runPublisher(db, false)]);
-  expect(sent).toBe(1);
+  expect(sent).toBe(2);
   expect(connection.query("SELECT count(*) AS n FROM publications").get()).toEqual({ n: 1 });
 });
 

@@ -15,13 +15,22 @@ function loadText(): string {
 }
 
 /** Split on a line that is exactly --- (thread parts). Single-part files stay one tweet. */
-function splitThreadParts(body: string): string[] {
+export function splitThreadParts(body: string): string[] {
   const parts = body
     .split(/\r?\n---\r?\n/)
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
   if (parts.length === 0) throw new Error("POST body empty after thread split");
   return parts;
+}
+
+/** Dig / radar: root tweet must never contain http(s) links. Fail before any X call. */
+export function assertRootTweetHasNoLinks(root: string): void {
+  if (/https?:\/\//i.test(root)) {
+    throw new Error(
+      "Root tweet must contain zero http(s) links; put the official URL after --- as 官方：…",
+    );
+  }
 }
 
 function loadMediaPaths(): string[] {
@@ -34,21 +43,28 @@ function loadMediaPaths(): string[] {
   return paths;
 }
 
-const parts = splitThreadParts(loadText());
-const mediaPaths = loadMediaPaths();
-const mediaIds = mediaPaths.length > 0 ? await uploadMedia(mediaPaths) : [];
-let previousId: string | undefined;
-const ids: string[] = [];
-for (let i = 0; i < parts.length; i++) {
-  const part = parts[i]!;
-  const attach = i === 0 && mediaIds.length > 0 ? mediaIds : undefined;
-  const id = await postTweet(part, previousId, attach);
-  ids.push(id);
-  console.log(
-    `posted ${id}${previousId ? ` (reply to ${previousId})` : ""}${attach ? ` media=${attach.length}` : ""}`,
-  );
-  previousId = id;
+async function main(): Promise<void> {
+  const parts = splitThreadParts(loadText());
+  assertRootTweetHasNoLinks(parts[0]!);
+  const mediaPaths = loadMediaPaths();
+  const mediaIds = mediaPaths.length > 0 ? await uploadMedia(mediaPaths) : [];
+  let previousId: string | undefined;
+  const ids: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]!;
+    const attach = i === 0 && mediaIds.length > 0 ? mediaIds : undefined;
+    const id = await postTweet(part, previousId, attach);
+    ids.push(id);
+    console.log(
+      `posted ${id}${previousId ? ` (reply to ${previousId})` : ""}${attach ? ` media=${attach.length}` : ""}`,
+    );
+    previousId = id;
+  }
+  if (ids.length > 1) {
+    console.log(`thread root ${ids[0]} parts ${ids.length}`);
+  }
 }
-if (ids.length > 1) {
-  console.log(`thread root ${ids[0]} parts ${ids.length}`);
+
+if (import.meta.main) {
+  await main();
 }

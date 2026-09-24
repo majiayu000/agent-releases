@@ -8,7 +8,7 @@ import { readState, writeState } from "./state.ts";
 import { appendLedger, dailyPostCount, hasPostedLive, pendingPosts, postingDay } from "./ledger.ts";
 import { isNotable } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
-import { postTweet } from "./twitter.ts";
+import { postTweet, postRootThenOfficialReply } from "./twitter.ts";
 import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
 
 export type Source = {
@@ -100,8 +100,7 @@ export async function publish(plan: Plan, send = postTweet, now = () => new Date
   for (const { release, text } of plan.posts) {
     try {
       if (plan.day !== postingDay(now())) throw new Error("Daily boundary reached; publication stopped");
-      const tweetId = await send(text);
-      if (!/^\d+$/.test(tweetId)) throw new Error("X returned no valid tweet ID; outcome unknown");
+      const tweetId = await postRootThenOfficialReply(text, release.url, send);
       appendLedger({ ts: now().toISOString(), product: release.product, version: release.version, dryRun: false, runId: plan.runId, tweetId });
       writeState(release.product, release.version);
       console.log(`[posted] ${release.product} ${release.version}: ${tweetId}`);

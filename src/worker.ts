@@ -6,7 +6,7 @@ import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.
 import type { Product, Release } from "./sources/types.ts";
 import { isNotable } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
-import { assertXCredentials, postTweet } from "./twitter.ts";
+import { assertXCredentials, postTweet, postRootThenOfficialReply } from "./twitter.ts";
 import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
 
 /** Operations shared by the D1 Worker and the SQLite preview runner. */
@@ -105,7 +105,7 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
     if (dayOf(new Date()) !== day) throw new Error("Daily boundary crossed after reservation; reconcile before retry");
     // Never retry automatically. Any exception, including lost DB acknowledgement,
     // leaves either a durable pending record or an already completed record.
-    const tweetId = await postTweet(text!);
+    const tweetId = await postRootThenOfficialReply(text!, release.url, postTweet);
     if (!/^\d+$/.test(tweetId)) throw new Error("X returned no valid tweet ID; outcome unknown");
     const completion = await db.batch([
       db.prepare("UPDATE publications SET status = 'posted', tweet_id = ?, posted_at = ? WHERE product = ? AND version = ? AND status = 'pending'")
