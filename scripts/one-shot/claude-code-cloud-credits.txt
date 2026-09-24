@@ -1,0 +1,21 @@
+【Claude】Claude Code 云会话促销额度：Pro $100 / Max $250
+
+要点：
+
+• 云会话已正式 GA；现有订阅用户可领一次性促销信用：Pro $100、Max $250（ClaudeDevs）
+• 仅用于云会话：网页 Code、手机 Code 页、桌面 Cloud、CLI `claude --cloud`；不是本地 CLI 配额赠送，也不是 API credits
+• 领取：网页 claim 或 CLI `/claim-credit`；需已连接 GitHub；10 月 7 日前领取；每账号一次
+• 信用与常规用量限额分开；云会话会先花完促销额度，再回落到 Pro/Max 计划用量
+• 本地撞限后可改走云会话直到额度用尽；关电脑也能继续跑
+
+谁受影响：
+
+• 已订 Pro / Max、想试云会话或补额度的现有订阅用户
+
+怎么验：
+
+• 已连 GitHub 后打开 claim 页或 CLI 跑 `/claim-credit`，再开一轮云会话看是否先扣促销额度
+
+👇 详情请看
+---
+官方：https://x.com/ClaudeDevs/status/2102871550974427462
