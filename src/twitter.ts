@@ -71,3 +71,24 @@ export async function postTweet(
   });
   return posted.data.id;
 }
+
+/**
+ * Post radar root (zero links) then dig-style official reply.
+ * Returns the root tweet id for the publications ledger.
+ */
+export async function postRootThenOfficialReply(
+  rootText: string,
+  officialUrl: string,
+  send: typeof postTweet = postTweet,
+): Promise<string> {
+  if (/https?:\/\//i.test(rootText)) {
+    throw new Error(
+      "Root tweet must contain zero http(s) links; official URL goes in the reply",
+    );
+  }
+  const rootId = await send(rootText);
+  if (!/^\d+$/.test(rootId)) throw new Error("X returned no valid tweet ID; outcome unknown");
+  const replyId = await send(`官方：${officialUrl}`, rootId);
+  if (!/^\d+$/.test(replyId)) throw new Error("X returned no valid reply tweet ID; outcome unknown");
+  return rootId;
+}
