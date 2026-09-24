@@ -61,7 +61,8 @@ describe("publication recovery", () => {
     const plan = await prepare(true, "live", [source(), source("codex")], draft, now);
     let calls = 0;
     await expect(publish(plan, async () => {
-      if (++calls === 2) throw new Error("response lost");
+      // Claude: root + official reply (2 calls); fail on Codex root.
+      if (++calls === 3) throw new Error("response lost");
       return "123";
     }, () => now)).rejects.toThrow("Reconcile pending");
     expect(hasPostedLive("claude", "2.0.0")).toBe(true);
@@ -69,7 +70,7 @@ describe("publication recovery", () => {
     expect(readState("codex")).toBe("1.0.0");
     expect(pendingPosts().map(p => p.product)).toEqual(["codex"]);
     await expect(prepare(true, "retry", [source(), source("codex")], draft, now)).rejects.toThrow("Unresolved");
-    expect(calls).toBe(2);
+    expect(calls).toBe(3);
   });
 
   test("process interruption after reservation cannot cause a fresh automatic post", async () => {
@@ -85,7 +86,7 @@ describe("publication recovery", () => {
     const live = await prepare(true, "live", [source()], draft, now);
     await publish(live, send, () => now);
     await expect(publish(live, send, () => now)).rejects.toThrow("Missing pending");
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
   });
 
   test("draft failure never consumes versions or creates a reservation", async () => {
@@ -227,7 +228,7 @@ describe("release content", () => {
 
   test("actual failure shapes are rejected; complete Chinese and code identifiers survive", () => {
     const r = release();
-    const wrap = (body: string) => `${postHeader(r)}\n\n${body}\n\n${r.url}`;
+    const wrap = (body: string) => `${postHeader(r)}\n\n${body}`;
     expect(() => validateChinesePost(wrap("🔧 新增 `maxEffortLevel` setting (top-level or per model under `modelSettings`): caps the effort level…"), r)).toThrow();
     expect(() => validateChinesePost(wrap("🔧 更新「详见发版说明」"), r)).toThrow();
     expect(() => validateChinesePost(wrap("🔧 " + "新增设置".repeat(100)), r)).toThrow("length limit");
@@ -257,21 +258,22 @@ describe("release content", () => {
     expect(body.reasoning_effort).toBeUndefined();
     expect(body.max_tokens).toBe(32_768);
     expect(result).toStartWith("🟣🚀 【Claude】Claude Code 2.0.0 发布");
-    expect(result).toEndWith(release().url);
+    expect(result).not.toMatch(/https?:\/\//i);
+    expect(result).not.toContain(release().url);
   });
 
   test("oversized multi-bullet draft keeps a complete first change without truncation", async () => {
     process.env.ANTHROPIC_API_KEY = "test-not-a-secret";
     const first = "🔧 新增自定义工具支持，方便开发者根据项目需求扩展工具并在会话中使用";
     const second = "🌿 改进大型仓库中的文件搜索速度，减少等待时间并提高检索结果的相关性，同时可以在结果列表中查看匹配位置和上下文，方便开发者定位相关实现";
-    expect(weightedXLength(`${postHeader(release())}\n\n${first}\n${second}\n${second}\n\n${release().url}`)).toBeGreaterThan(280);
+    expect(weightedXLength(`${postHeader(release())}\n\n${first}\n${second}\n${second}`)).toBeGreaterThan(280);
     globalThis.fetch = (async () => Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: `${first}\n${second}\n${second}` }] })) as unknown as typeof fetch;
     const result = await draftChinesePost(release());
     expect(result).toContain(first);
     expect(result).not.toContain("…");
     expect(result).not.toContain(`${second}\n${second}`);
     expect(weightedXLength(result)).toBeLessThanOrEqual(280);
-    expect(result).toEndWith(release().url);
+    expect(result).not.toMatch(/https?:\/\//i);
   });
 
   test("draft token budget is read per call", async () => {
