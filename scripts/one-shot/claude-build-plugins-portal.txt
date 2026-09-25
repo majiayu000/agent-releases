@@ -1,0 +1,21 @@
+【Claude】Claude 插件目录开放开发者提交通道
+
+要点：
+
+• Anthropic 上线目录提交通道：付费 Claude 计划开发者可提交插件，走审阅、安全扫描与上架
+• 插件可打包 MCP 连接器与 Agent Skills；在 Claude Code 里还可带 LSP、命令、hooks 与 agents
+• 提交后可自动校验、看审阅状态与反馈，通过后自行决定何时发布
+• 上架后有用量分析：按产品面与版本看安装，以及列表曝光与搜索来源
+• 接下来几周 Claude 与 Claude Code 会统一发现体验；已有 skill、connector 或插件不用改
+
+谁受影响：
+
+• 想上架第三方插件的开发者；在 Claude / Claude Code 里找插件的用户
+
+怎么验：
+
+• 打开目录管理页提交插件包或 MCP 连接器，再对照官方博客核对流程
+
+👇 详情请看
+---
+官方：https://claude.com/blog/build-plugins-for-claude
