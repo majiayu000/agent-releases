@@ -6,7 +6,7 @@ import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.
 import type { Product, Release } from "./sources/types.ts";
 import { readState, writeState } from "./state.ts";
 import { appendLedger, dailyPostCount, hasPostedLive, pendingPosts, postingDay } from "./ledger.ts";
-import { isNotable } from "./filter.ts";
+import { selectRadarCandidate } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
 import { postTweet, postRootThenOfficialReply } from "./twitter.ts";
 import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
@@ -56,21 +56,25 @@ export async function prepare(
       }
       const releases = await source.fetchSince(prev);
       console.log(`[walk] ${source.product}: ${releases.length} new releases`);
+      const fresh: typeof releases = [];
       for (const release of releases) {
-        if (hasPostedLive(source.product, release.version) || !isNotable(release.notes)) {
+        if (hasPostedLive(source.product, release.version)) {
           updates.push({ product: source.product, version: release.version });
-          continue;
+        } else {
+          fresh.push(release);
         }
-        if (live && plan.posts.length >= remaining) {
-          console.log(`[deferred] daily limit reached: ${source.product} ${release.version}`);
-          break;
-        }
-        const text = await draft(release);
-        plan.posts.push({ release, text });
-        console.log(`=== ${source.product} ${release.version} ===\n${text}`);
-        // At most one new post per product per run. Never advance past an unposted version.
-        break;
       }
+      const { skip, candidate } = selectRadarCandidate(fresh, prev);
+      for (const release of skip) updates.push({ product: source.product, version: release.version });
+      if (!candidate) continue;
+      if (live && plan.posts.length >= remaining) {
+        console.log(`[deferred] daily limit reached: ${source.product} ${candidate.version}`);
+        continue;
+      }
+      const text = await draft(candidate);
+      plan.posts.push({ release: candidate, text });
+      console.log(`=== ${source.product} ${candidate.version} ===\n${text}`);
+      // At most one new post per product per run. Skips advance; candidate waits for publish.
     } catch (error) {
       errors.push(`${source.product}: ${error instanceof Error ? error.message : String(error)}`);
     }

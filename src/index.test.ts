@@ -6,7 +6,8 @@ import { prepare, publish, type Source } from "./index.ts";
 import { appendLedger, dailyPostCount, hasPostedLive, pendingPosts, readLedger } from "./ledger.ts";
 import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
 import { readState, writeState } from "./state.ts";
-import { isNotable, pickBullets } from "./filter.ts";
+import { isNotable, pickBullets, isEmptyChore, isClearlyValuable, selectRadarCandidate, coalescePatchReleases } from "./filter.ts";
+import { versionBumpKind } from "./versions.ts";
 import { draftChinesePost, validateChinesePost } from "./draft.ts";
 import { weightedXLength } from "./x-length.ts";
 import { fetchClaudeSince } from "./sources/claude.ts";
@@ -366,6 +367,84 @@ describe("release content", () => {
   });
 });
 
+
+describe("radar coalesce / de-noise", () => {
+  test("version bump kind and empty-chore / valuable heuristics", () => {
+    expect(versionBumpKind("1.2.3", "1.2.2")).toBe("patch");
+    expect(versionBumpKind("1.3.0", "1.2.9")).toBe("minor");
+    expect(versionBumpKind("2.0.0", "1.9.9")).toBe("major");
+    expect(versionBumpKind("rust-v0.154.0", "rust-v0.153.4")).toBe("minor");
+    expect(versionBumpKind("26.909", "26.908")).toBe("patch");
+    expect(versionBumpKind("1.0.0", null)).toBe("unknown");
+    expect(isEmptyChore("- chore: bump dependencies\n- Update lockfile")).toBe(true);
+    expect(isEmptyChore("- Fixed a crash")).toBe(true);
+    expect(isEmptyChore("- Added support for custom commands and terminal sessions")).toBe(false);
+    expect(isClearlyValuable("- Added X")).toBe(false);
+    expect(isClearlyValuable("- Added support for custom commands and terminal sessions")).toBe(true);
+    expect(isClearlyValuable("- Added MCP server discovery\n- Added plugin marketplace search")).toBe(true);
+  });
+
+  test("consecutive patches coalesce; lone thin patch is skipped; major stays postable", () => {
+    const thin = (version: string): Release => ({
+      product: "claude", version, displayVersion: version, title: version,
+      notes: "- Added tiny tweak", url: "https://example.com/" + version,
+    });
+    const rich = (version: string): Release => ({
+      product: "claude", version, displayVersion: version, title: version,
+      notes: "- Added support for custom commands and terminal sessions", url: "https://example.com/" + version,
+    });
+    const major = release("claude", "2.0.0");
+    major.notes = "- Added a brand new agent runtime with hooks";
+
+    const bundled = selectRadarCandidate([thin("1.0.1"), thin("1.0.2"), rich("1.0.3")], "1.0.0");
+    expect(bundled.skip).toEqual([]);
+    expect(bundled.candidate?.version).toBe("1.0.3");
+    expect(bundled.candidate?.displayVersion).toBe("1.0.1→1.0.3");
+    expect(bundled.candidate?.notes).toContain("## 1.0.1");
+    expect(coalescePatchReleases([thin("1.0.1"), rich("1.0.2")]).displayVersion).toBe("1.0.1→1.0.2");
+
+    const loneThin = selectRadarCandidate([thin("1.0.1")], "1.0.0");
+    expect(loneThin.candidate).toBeNull();
+    expect(loneThin.skip.map(r => r.version)).toEqual(["1.0.1"]);
+
+    const loneRich = selectRadarCandidate([rich("1.0.1")], "1.0.0");
+    expect(loneRich.candidate?.version).toBe("1.0.1");
+    expect(loneRich.skip).toEqual([]);
+
+    const choreThenMajor = selectRadarCandidate([
+      { ...thin("1.0.1"), notes: "- chore: bump dependencies" },
+      major,
+    ], "1.0.0");
+    expect(choreThenMajor.skip.map(r => r.version)).toEqual(["1.0.1"]);
+    expect(choreThenMajor.candidate?.version).toBe("2.0.0");
+  });
+
+  test("prepare absorbs thin patches and posts a coalesced tip once", async () => {
+    const list = ["1.0.1", "1.0.2", "1.0.3"].map(version => {
+      const r = release("claude", version);
+      r.notes = version === "1.0.3"
+        ? "- Added support for custom commands and terminal sessions"
+        : "- Added tiny tweak";
+      return r;
+    });
+    const plan = await prepare(true, "live", [source("claude", list)], draft, now);
+    expect(plan.posts).toHaveLength(1);
+    expect(plan.posts[0]!.release.version).toBe("1.0.3");
+    expect(plan.posts[0]!.release.displayVersion).toBe("1.0.1→1.0.3");
+    expect(readState("claude")).toBe("1.0.0");
+    await publish(plan, async () => "123", () => now);
+    expect(readState("claude")).toBe("1.0.3");
+    expect(hasPostedLive("claude", "1.0.3")).toBe(true);
+  });
+
+  test("prepare skips a lone thin patch without reserving", async () => {
+    const r = release("claude", "1.0.1");
+    r.notes = "- Added tiny tweak";
+    const plan = await prepare(true, "live", [source("claude", [r])], draft, now);
+    expect(plan.posts).toEqual([]);
+    expect(readState("claude")).toBe("1.0.1");
+  });
+});
 
 describe("durable Git checkpoint", () => {
   function git(...args: string[]): string {

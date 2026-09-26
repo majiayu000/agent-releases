@@ -4,7 +4,7 @@ import { fetchLatestCodex, fetchCodexSince } from "./sources/codex.ts";
 import { fetchLatestCodexApp, fetchCodexAppSince } from "./sources/codex-app.ts";
 import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.ts";
 import type { Product, Release } from "./sources/types.ts";
-import { isNotable } from "./filter.ts";
+import { selectRadarCandidate } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
 import { assertXCredentials, postTweet, postRootThenOfficialReply } from "./twitter.ts";
 import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
@@ -63,16 +63,21 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
       continue;
     }
     let cursor = previous;
+    const fresh: Release[] = [];
     for (const release of await source.since(previous)) {
       const known = await db.prepare("SELECT status FROM publications WHERE product = ? AND version = ?").bind(source.product, release.version).first<string>("status");
       if (known === "pending") throw new Error(`Pending publication: ${source.product} ${release.version}`);
-      if (known === "posted" || !isNotable(release.notes)) { cursor = release.version; continue; }
-      if (remaining === 0) break;
-      plans.push({ product: source.product, previous, cursor, release, text: await draftChinesePost(release) });
-      remaining--;
-      break;
+      if (known === "posted") { cursor = release.version; continue; }
+      fresh.push(release);
     }
-    if (!plans.some(plan => plan.product === source.product)) plans.push({ product: source.product, previous, cursor });
+    const { skip, candidate } = selectRadarCandidate(fresh, cursor);
+    for (const release of skip) cursor = release.version;
+    if (candidate && remaining > 0) {
+      plans.push({ product: source.product, previous, cursor, release: candidate, text: await draftChinesePost(candidate) });
+      remaining--;
+    } else if (!plans.some(plan => plan.product === source.product)) {
+      plans.push({ product: source.product, previous, cursor });
+    }
   }
   if (preview) { console.log(JSON.stringify({ mode: "preview", plans })); return; }
 
