@@ -11,6 +11,8 @@ const HOLLOW_BULLET =
 const EMOJI_RUN =
   /\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*/u;
 
+const HTTP_LINK = /https?:\/\//i;
+
 /**
  * Collapse stacked leading emojis (`🔧 🛠️ 新增` → `🔧 新增`) so live posts
  * keep shipping when the model doubles up. Exported for selfcheck.
@@ -37,14 +39,22 @@ export function isSemanticEmojiBullet(line: string): boolean {
   return !new RegExp(`^${EMOJI_RUN.source}`, "u").test(m[2]);
 }
 
-/** Check the final payload once, without truncating sentences or rewriting source facts. */
+/** Dig-style official reply body for the release URL. */
+export function officialReplyText(release: Release): string {
+  return `官方：${release.url}`;
+}
+
+/** Check the final root payload once, without truncating sentences or rewriting source facts. */
 export function validateChinesePost(text: string, release: Release): string {
   const lines = text.trim().split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const header = postHeader(release);
-  if (lines[0] !== header || lines.at(-1) !== release.url) {
-    throw new Error("Draft must have the exact product/version heading and release URL");
+  if (lines[0] !== header) {
+    throw new Error("Draft must have the exact product/version heading");
   }
-  const bullets = lines.slice(1, -1).map(normalizeBulletEmoji);
+  if (HTTP_LINK.test(text)) {
+    throw new Error("Root draft must contain zero http(s) links; official URL goes in the reply");
+  }
+  const bullets = lines.slice(1).map(normalizeBulletEmoji);
   if (
     bullets.length < 1 ||
     bullets.length > 3 ||
@@ -62,7 +72,7 @@ export function validateChinesePost(text: string, release: Release): string {
       throw new Error("Draft has untranslated, empty or truncated bullet content; review required");
     }
   }
-  const result = `${lines[0]}\n\n${bullets.join("\n")}\n\n${release.url}`;
+  const result = `${lines[0]}\n\n${bullets.join("\n")}`;
   if (weightedXLength(result) > X_WEIGHTED_LIMIT) {
     throw new Error("Draft exceeds X length limit; regenerate a shorter complete draft");
   }
@@ -79,7 +89,7 @@ export async function draftChinesePost(release: Release): Promise<string> {
     // LLM may accidentally include header/url; keep only bullet-like lines.
     .filter((line) => isSemanticEmojiBullet(line) || line.startsWith("• "));
   const header = postHeader(release);
-  const assemble = () => `${header}\n\n${bullets.join("\n")}\n\n${release.url}`;
+  const assemble = () => `${header}\n\n${bullets.join("\n")}`;
   // Prefer fewer complete changes over cutting sentences or code tokens mid-way.
   while (bullets.length > 1 && weightedXLength(assemble()) > X_WEIGHTED_LIMIT) bullets.pop();
   return validateChinesePost(assemble(), release);

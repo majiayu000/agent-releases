@@ -61,7 +61,13 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
           assert.equal(request.method, 'POST');
           const pending = await db.prepare("SELECT * FROM publications WHERE status='pending'").all();
           assert.equal(pending.results.length, 1, 'intent must be durable before X');
-          assert.equal((await request.json()).text, pending.results[0].text);
+          const body = await request.json();
+          if (body.reply?.in_reply_to_tweet_id) {
+            assert.match(body.text, /^官方：https?:\/\//);
+          } else {
+            assert.equal(body.text, pending.results[0].text);
+            assert.ok(!/https?:\/\//i.test(body.text), 'root tweet must have zero links');
+          }
           assert.match(request.headers.get('authorization'), /OAuth /);
           calls.tweets++;
           if (failX) return Response.json({ detail: 'outcome unknown' }, { status: 503 });
@@ -88,13 +94,13 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
 test('Workers runtime publishes once, persists before X and ignores replay', async t => {
   const { db, calls, run } = await setup(t);
   assert.equal((await run()).outcome, 'ok');
-  assert.equal(calls.tweets, 4);
+  assert.equal(calls.tweets, 8);
   assert.equal((await db.prepare("SELECT count(*) AS n FROM publications WHERE status='posted'").first()).n, 4);
   assert.equal((await run()).outcome, 'ok');
-  assert.equal(calls.tweets, 4);
+  assert.equal(calls.tweets, 8);
   await db.prepare("UPDATE cursors SET version = CASE WHEN product='codex' THEN 'rust-v1.0.0' WHEN product='codex_app' THEN 'codex-2026-01-01-app' ELSE '1.0.0' END").run();
   assert.equal((await run()).outcome, 'ok');
-  assert.equal(calls.tweets, 4);
+  assert.equal(calls.tweets, 8);
 });
 
 test('preview does not write state or call X', async t => {
@@ -118,20 +124,20 @@ test('D1 completion failure preserves pending intent after X success', async t =
   const { db, calls, run } = await setup(t);
   await db.prepare("CREATE TRIGGER fail_completion BEFORE UPDATE ON cursors BEGIN SELECT RAISE(ABORT, 'test completion failure'); END").run();
   assert.equal((await run()).outcome, 'exception');
-  assert.equal(calls.tweets, 1);
+  assert.equal(calls.tweets, 2);
   assert.equal((await db.prepare("SELECT status FROM publications").first()).status, 'pending');
   assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.0.0');
   assert.equal((await run()).outcome, 'exception');
-  assert.equal(calls.tweets, 1);
+  assert.equal(calls.tweets, 2);
 });
 
 test('overlapping cron runs cannot send the same version twice', async t => {
   const { db, calls, run } = await setup(t);
   await Promise.allSettled([run(), run(), run()]);
   const rows = (await db.prepare('SELECT * FROM publications').all()).results;
-  assert.ok(calls.tweets >= 1);
-  assert.equal(calls.tweets, rows.length);
-  assert.ok(calls.tweets <= 4);
+  assert.ok(calls.tweets >= 2);
+  assert.equal(calls.tweets, rows.length * 2);
+  assert.ok(calls.tweets <= 8);
   assert.equal(new Set(rows.map(r => `${r.product}:${r.version}`)).size, rows.length);
   assert.ok(rows.every(r => r.status === 'posted'));
 });
@@ -140,10 +146,10 @@ test('daily limit is enforced across products and leaves remaining versions for 
   const { db, calls, run } = await setup(t);
   for (let i = 0; i < DAILY_PUBLICATION_LIMIT - 1; i++) await db.prepare("INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day) VALUES ('claude',?,'posted','history',?, ?, ?)").bind(`0.0.${i}`, String(i + 1), new Date().toISOString(), day()).run();
   assert.equal((await run()).outcome, 'ok');
-  assert.equal(calls.tweets, 1);
+  assert.equal(calls.tweets, 2);
   assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='codex'").first()).version, 'rust-v1.0.0');
   assert.equal((await run()).outcome, 'ok');
-  assert.equal(calls.tweets, 1);
+  assert.equal(calls.tweets, 2);
 });
 
 for (const failure of ['failSource', 'failDraft']) test(`${failure} cannot partially reserve or publish`, async t => {
@@ -167,7 +173,7 @@ test('concurrent cron runs cannot exceed the last remaining daily slot', async t
   const { db, calls, run } = await setup(t);
   for (let i = 0; i < DAILY_PUBLICATION_LIMIT - 1; i++) await db.prepare("INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day) VALUES ('claude',?,'posted','history',?, ?, ?)").bind(`0.0.${i}`, String(i + 1), new Date().toISOString(), day()).run();
   await Promise.all([run(), run(), run()]);
-  assert.equal(calls.tweets, 1);
+  assert.equal(calls.tweets, 2);
   assert.equal((await db.prepare('SELECT count(*) AS n FROM publications WHERE day=?').bind(day()).first()).n, DAILY_PUBLICATION_LIMIT);
 });
 
@@ -208,7 +214,7 @@ test('a deferred reservation still publishes later products', async t => {
   assert.equal((await run()).outcome, 'ok');
   const products = (await db.prepare("SELECT product FROM publications WHERE status='posted'").all()).results.map(r => r.product);
   assert.deepEqual([...products].sort(), ['codex', 'codex_app', 'grok_build']);
-  assert.equal(calls.tweets, 3);
+  assert.equal(calls.tweets, 6);
 });
 
 test('missing X secrets cannot create a pending publication', async t => {
