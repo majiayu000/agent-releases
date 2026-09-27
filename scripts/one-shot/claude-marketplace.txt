@@ -1,0 +1,21 @@
+【Claude】Claude Marketplace 上线：插件、Agent 与服务统一发现
+
+要点：
+
+• Anthropic 推出 Claude Marketplace，把插件 / 连接器、Agent 产品与服务伙伴收进同一入口
+• 现有 2000+ 插件与连接器可选，含 Atlassian、Google、Microsoft、Notion、Salesforce 等
+• 可用 Anthropic 承诺采购额度的一部分，购买 CrowdStrike、Cursor、Harvey、Legora、Lovable、Snowflake 等 Claude 驱动产品
+• 可通过 Marketplace 对接 Claude Partner Network 咨询与集成伙伴（如 Accenture、BCG、Deloitte）
+• 开发者可用 MCP 与 Agent Skills 做连接器 / 插件；Agent 产品可申请上架；咨询方加入 Partner Network 即可出现在市场
+
+谁受影响：
+
+• 想扩展 Claude 工具栈的团队；做连接器、Agent 产品或咨询集成的伙伴
+
+怎么验：
+
+• 打开 Claude Marketplace，对照官方博客核对插件 / 产品 / 服务三类入口
+
+👇 详情请看
+---
+官方：https://claude.com/blog/claude-marketplace
