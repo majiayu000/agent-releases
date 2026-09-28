@@ -1,0 +1,21 @@
+【Claude】Sonnet 5.5 上线：日常 Agent 编码大跳一档
+
+要点：
+
+• Claude 5.5 家族第二款，定位日常明确任务与编码；复杂开放题仍交给 Opus 5.5
+• Terminal-Bench 4.0 约 70.6%（Sonnet 5 约 10.3%）；CursorBench 4.0 约 55.5%，贴近 Opus 5.5
+• 标价仍 $2 / $10 每百万 token，多数任务实际花费可比 Sonnet 5 低约 30%；输出更快约 30%+
+• Claude Code 2.1.284 已加入 `claude-sonnet-5-5`，并成为 Anthropic API 默认 Sonnet
+• 全平台可用（含 AWS / Google Cloud / Azure）；Haiku 5.5 仍排后续几周
+
+谁受影响：
+
+• Claude Code、Claude API、订阅端里用 Sonnet 做日常编码与 Agent 的用户
+
+怎么验：
+
+• `/model` 是否出现 Sonnet 5.5；CLI 或 API 指定 `claude-sonnet-5-5` 开一轮
+
+👇 详情请看
+---
+官方：https://www.anthropic.com/claude-sonnet-5-5
