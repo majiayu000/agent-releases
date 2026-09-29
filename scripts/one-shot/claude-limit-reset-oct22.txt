@@ -1,0 +1,21 @@
+【Claude】Pro / Max / Team 限流重置仍可领：10 月 22 日前
+
+要点：
+
+• Opus 5.5 上线时给订阅用户发了一次可自选时机的限流重置；ClaudeDevs 在 Sonnet 5.5 串里再提醒：还没用可继续领，截止 10 月 22 日
+• 适用 Pro / Max / Team；点用后立刻把五小时会话限额或周限额（以 Settings 所示类型为准）补满，不可撤销
+• 领取：网页或 Claude Desktop → Settings → Usage →「Reset for free」；手机 App 与 Claude Code 终端 / IDE 暂无按钮
+• 账号限额共享：在网页或桌面领完后，Claude Code 与 Mobile 也会一起回满
+• 不退已购额外用量；降级或取消订阅前未用则失效
+
+谁受影响：
+
+• 已订 Pro / Max / Team、还没用掉这次重置的用户（含主要跑 Claude Code 的）
+
+怎么验：
+
+• 打开 claude.ai 或桌面端 Settings → Usage，看 Resets 是否仍有「Reset for free」与到期日
+
+👇 详情请看
+---
+官方：https://x.com/ClaudeDevs/status/2104641323198472430
