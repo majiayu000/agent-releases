@@ -1,0 +1,24 @@
+🩵🚀 【Codex】GPT-6.1 Sol：接近 Astra，API 价约五分之一
+
+要点：
+
+• GPT-6 Sol 的升级：复杂编码、电脑操作、专业工作接近 GPT-6 Astra，标准 API 输入 / 输出约为 Astra 的 1/5
+• 模型 id `gpt-6.1-sol`；标准价 $2 / $0.10（缓存输入）/ $10（每百万 token）。缓存输入比标准输入低 95%，也比 GPT-6 Sol 的缓存价低一半
+• 今天起 Plus / Pro / Business / Enterprise / Edu 可在 ChatGPT Work 与 Codex 使用；标准 Chat 还没有
+• 官方 changelog（2026-09-29）同步记下 Codex CLI 0.159.0；是否看得到模型，仍看套餐、客户端和工作区设置
+• Ultrafast（官方称 Codex 里生成可比标准快最多 8 倍）还没到，过几天再上
+• 别和 Agents API 搞混：那条仍是公测，不是这次 GA
+
+谁受影响：
+
+• 还钉着 `gpt-6-sol` 跑长任务的 Codex CLI / App、ChatGPT Work；API 里按 token 算账的 agent
+• Enterprise 工作区若默认关新模型，要管理员先开
+
+怎么验：
+
+• 模型选择器里找 GPT-6.1 Sol；CLI 试 `codex --model gpt-6.1-sol` 或 `/model`
+• API 请求体模型名写成 `gpt-6.1-sol`，对照官方价 $2 / $0.10 / $10
+
+👇 详情请看
+---
+官方：https://openai.com/index/introducing-gpt-6-1-sol/
