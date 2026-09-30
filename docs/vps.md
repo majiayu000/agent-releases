@@ -24,7 +24,9 @@ ssh aaltr-us 'systemctl start agent-releases.timer'
 
 `oneshot` 服务执行成功后会变为 inactive，这是正常状态。查看 `Result=success`、退出码和 `[complete] mode=publish` 日志判断本轮是否成功。timer 保持 active/waiting；宕机恢复后补一次检查，不会补发所有历史版本。
 
-发现 pending 时停发并核对 X 时间线。已发送的记录应补全 tweet ID、标记 posted 并推进对应游标；只有确定未发送才可清理该 pending。不要仅凭超时就删除记录或重试。人工发帖也必须同步实时账本。迁移或备份账本时先停 timer 并确认 service 已结束，避免复制过程中有写入。
+发现 pending 时停发并核对 X 时间线。`tweet_id` 非空表示根帖已发送，回复或完成回写仍待核对；不能删除该 pending 或重发根帖。根帖与官方链接回复都确认后，才可标记 posted 并推进对应游标。只有确认根帖未发送才可清理该 pending。不要仅凭超时就删除记录或重试。人工发帖也必须同步实时账本。迁移或备份账本时先停 timer 并确认 service 已结束，避免复制过程中有写入。
+
+若根帖已发送且确认官方回复未发送，使用已有 `postTweet("官方：URL", "ROOT_ID")` 仅补回复，保留原根帖 ID；回复结果未知时继续保留 pending。运行日志也会保留已知根帖 ID，即使写入该 ID 的数据库操作失败。没有 `tweet_id` 不证明根帖未发，仍需核对时间线。文件账本测试路径用 `tweetId` 加 `replyPending: true` 保存同一状态，不能将它当作发布完成或导入为 posted。
 
 ## 只读预览
 

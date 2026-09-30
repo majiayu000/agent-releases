@@ -38,7 +38,7 @@ export async function prepare(
 ): Promise<Plan> {
   const pending = pendingPosts();
   if (live && pending.length) {
-    throw new Error(`Unresolved X publication; reconcile before retry: ${pending.map(p => `${p.product} ${p.version}`).join(", ")}`);
+    throw new Error(`Unresolved X publication; reconcile before retry: ${pending.map(p => `${p.product} ${p.version}${p.tweetId ? ` (root tweet ${p.tweetId} was posted)` : ""}`).join(", ")}`);
   }
   const plan: Plan = { runId, day: postingDay(now), posts: [] };
   const remaining = Math.max(0, DAILY_PUBLICATION_LIMIT - dailyPostCount(now));
@@ -96,15 +96,19 @@ export async function publish(plan: Plan, send = postTweet, now = () => new Date
   }
   const pending = pendingPosts();
   for (const { release, text } of plan.posts) {
-    if (!pending.some(p => p.product === release.product && p.version === release.version && p.runId === plan.runId && p.text === text)) {
+    const reservation = pending.find(p => p.product === release.product && p.version === release.version && p.runId === plan.runId && p.text === text);
+    if (!reservation) {
       throw new Error(`Missing pending reservation: ${release.product} ${release.version}`);
     }
+    if (reservation.tweetId) throw new Error(`Root tweet ${reservation.tweetId} was posted; reconcile the official reply before retry`);
   }
   const errors: string[] = [];
   for (const { release, text } of plan.posts) {
     try {
       if (plan.day !== postingDay(now())) throw new Error("Daily boundary reached; publication stopped");
-      const tweetId = await postRootThenOfficialReply(text, release.url, send);
+      const tweetId = await postRootThenOfficialReply(text, release.url, send, rootId => {
+        appendLedger({ ...pending.find(p => p.product === release.product && p.version === release.version)!, tweetId: rootId, replyPending: true });
+      });
       appendLedger({ ts: now().toISOString(), product: release.product, version: release.version, dryRun: false, runId: plan.runId, tweetId });
       writeState(release.product, release.version);
       console.log(`[posted] ${release.product} ${release.version}: ${tweetId}`);
