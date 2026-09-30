@@ -15,8 +15,6 @@ const FLUFF_BULLET =
 
 function featureProse(bullet: string): string {
   const withoutTag = bullet.replace(/^(?:\[[^\]]+\]\s*)+/, "");
-  // Keep explicit chore/fluff labels so their prefix semantics survive too.
-  if (CHORE_BULLET.test(withoutTag) || FLUFF_BULLET.test(withoutTag)) return withoutTag;
   // Keep fix:/fixed: so prefix semantics survive; only strip unrelated labels like Windows:
   return withoutTag.replace(/^(?!(?:fix(?:ed|es)?|bug\s*fix(?:es)?|修复)\b)[A-Za-z]+:\s*/i, "");
 }
@@ -57,8 +55,10 @@ export function isEmptyChore(notes: string): boolean {
   const bullets = pickBullets(notes, 10);
   if (!bullets.length) return true;
   return bullets.every((bullet) => {
+    const labeled = bullet.replace(/^(?:\[[^\]]+\]\s*)+/, "");
     const prose = featureProse(bullet);
-    return CHORE_BULLET.test(prose) || FLUFF_BULLET.test(prose);
+    return CHORE_BULLET.test(labeled) || FLUFF_BULLET.test(labeled) ||
+      CHORE_BULLET.test(prose) || FLUFF_BULLET.test(prose);
   });
 }
 

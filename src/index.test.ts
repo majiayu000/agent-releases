@@ -402,6 +402,13 @@ describe("radar coalesce / de-noise", () => {
     expect(selectRadarCandidate([r], "1.0.0")).toEqual({ skip: [r], candidate: null });
   });
 
+  test("filters fixes and metadata behind chore labels before picking features", () => {
+    const feature = "Added support for custom commands and terminal sessions";
+    const notes = `- chore: #123 update metadata\n- style: Fixed a crash\n- ${feature}`;
+    expect(pickBullets(notes, 2)).toEqual([feature]);
+    expect(isEmptyChore(notes)).toBe(false);
+  });
+
   test("version bump kind and empty-chore / valuable heuristics", () => {
     expect(versionBumpKind("1.2.3", "1.2.2")).toBe("patch");
     expect(versionBumpKind("1.3.0", "1.2.9")).toBe("minor");
