@@ -1,0 +1,22 @@
+🩵🚀 【Codex】【ChatGPT】Pro 500 上线：Astra Ultrafast 进 Work / Codex
+
+要点：
+
+• 新档 Pro 500：$500/月，Pro 三档里含用量最高，并附带 Astra Ultrafast
+• Ultrafast：模型选择器里选更快的 GPT-6 Astra 服务档；先吃套餐含用量，再用完后走 credit
+• 自助 Pro 里只有 Pro 500 带 Ultrafast；Pro 100 / 200 买 credit 也解锁不了（发布时）
+• Enterprise / Edu：Ultrafast 走工作区 credit，需相应权限
+• Pro 200 可重新新订；不符合 grandfather 的新订含用量更低；老 Pro 200 旧含用量可保到 2026-10-29，但不等于升到 Pro 500 / 无 Ultrafast
+
+谁受影响：
+
+• 重度 Codex / ChatGPT Work 用 Astra、愿意为更低延迟升档的 Pro 用户；企业工作区管理员
+
+怎么验：
+
+• ChatGPT 网页定价页是否出现 Pro 500；Work / Codex 模型选择器是否有 Ultrafast
+• Settings → Usage 看含用量与 credit 扣费顺序
+
+👇 详情请看
+---
+官方：https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers
