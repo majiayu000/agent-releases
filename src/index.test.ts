@@ -375,6 +375,8 @@ describe("radar coalesce / de-noise", () => {
     "Minor latency win for long tool calls",
     "Internal hooks for third-party agents",
     "Bump the context window to 128k tokens",
+    "Bump API from v1.0 to v2.0",
+    "Bump context from 64.0k to 128.0k",
   ])("keeps feature prose postable: %s", (bullet) => {
     const notes = `- ${bullet}`;
     expect(isNotable(notes)).toBe(true);
@@ -390,6 +392,9 @@ describe("radar coalesce / de-noise", () => {
     "build(deps): refresh tooling",
     "chore: tidy package metadata",
     "ci: refresh the runner image",
+    "Documentation updates",
+    "Docs updates",
+    "CI improvements",
     "[Windows] style: reformat sources",
     "internal(runtime): reorganize helpers",
     "minor: tidy formatting",
