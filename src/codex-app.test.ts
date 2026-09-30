@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import {
   articleToNotes,
   compareChangelogIds,
+  fetchCodexAppSince,
   parseCodexAppEntries,
 } from "./sources/codex-app.ts";
 import { isNotable, pickBullets, selectRadarCandidate } from "./filter.ts";
@@ -88,6 +89,49 @@ describe("codex app radar", () => {
 });
 
 describe("codex app changelog", () => {
+  test.each([
+    { cursor: "codex-2026-12-31-app", cursorBuild: "26.1231", olderBuild: null, nextBuild: "27.101", post: true },
+    { cursor: "codex-2027-01-01-app", cursorBuild: "26.1231", olderBuild: null, nextBuild: "27.101", post: true },
+    { cursor: "codex-2026-12-31-app", cursorBuild: "27.101", olderBuild: null, nextBuild: "27.102", post: false },
+    { cursor: "codex-2026-12-31-app", cursorBuild: null, olderBuild: "26.1230", nextBuild: "27.101", post: true },
+    { cursor: "codex-2026-12-31-app", cursorBuild: null, olderBuild: null, nextBuild: "27.101", post: false },
+  ])("feed baseline uses numbered history for $cursor / $cursorBuild / $olderBuild", async ({ cursor, cursorBuild, olderBuild, nextBuild, post }) => {
+    const tip = "codex-2027-01-02-app";
+    const entry = (id: string, build: string | null) => `<li id="${id}" data-codex-topics="codex-app"><h3>Codex app ${build ?? "announcement"}</h3><article><p>Added tiny tweak</p></article></li>`;
+    const html = entry(tip, nextBuild) + entry(cursor, cursorBuild) +
+      (olderBuild ? entry("codex-2026-12-30-app", olderBuild) : "");
+    const realFetch = globalThis.fetch;
+    let reads = 0;
+    globalThis.fetch = (async (_input: string | URL | Request) => { reads++; return new Response(html); }) as typeof fetch;
+    try {
+      const releases = await fetchCodexAppSince(cursor);
+      expect(reads).toBe(1);
+      expect(releases.map(release => release.version)).toEqual([tip]);
+      expect(releases[0]?.previousAppBuild).toBe(cursorBuild ?? olderBuild ?? undefined);
+      const selection = selectRadarCandidate(releases, cursor);
+      expect(selection.candidate?.version ?? null).toBe(post ? tip : null);
+      expect(selection.skip.map(release => release.version)).toEqual(post ? [] : [tip]);
+    } finally { globalThis.fetch = realFetch; }
+  });
+
+  test("feed baseline follows numbered entries when posted releases are filtered out", async () => {
+    const cursor = "codex-2026-12-31-app";
+    const html = [
+      ["codex-2027-01-03-app", "27.103"],
+      ["codex-2027-01-02-browser", "announcement"],
+      ["codex-2027-01-01-app", "27.101"],
+      [cursor, "26.1231"],
+    ].map(([id, build]) => `<li id="${id}" data-codex-topics="codex-app"><h3>Codex app ${build}</h3><article><p>Added tiny tweak</p></article></li>`).join("");
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (_input: string | URL | Request) => new Response(html)) as typeof fetch;
+    try {
+      const releases = await fetchCodexAppSince(cursor);
+      expect(releases.map(release => release.previousAppBuild)).toEqual(["26.1231", "27.101", "27.101"]);
+      const fresh = releases.slice(2);
+      expect(selectRadarCandidate(fresh, releases[1]!.version)).toEqual({ skip: fresh, candidate: null });
+    } finally { globalThis.fetch = realFetch; }
+  });
+
   test("parses only topics that include codex-app", () => {
     const entries = parseCodexAppEntries(fixture);
     expect(entries.map((e) => e.version)).toEqual([
