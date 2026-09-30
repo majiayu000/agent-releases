@@ -121,6 +121,38 @@ describe("publication recovery", () => {
     expect(readState("claude")).toBe("2.0.0");
   });
 
+  test("coalesced file-ledger members survive rewinds and count as one post", async () => {
+    const list = ["1.0.1", "1.0.2", "1.0.3"].map(version => release("claude", version));
+    const plan = await prepare(true, "bundle", [source("claude", list)], draft, now);
+    expect(plan.posts.map(p => p.release.displayVersion)).toEqual(["1.0.1→1.0.3"]);
+    expect(dailyPostCount(now)).toBe(1);
+    let sent = 0;
+    const send = async () => String(123 + sent++);
+    await publish(plan, send, () => now);
+    const posted = readLedger().filter(e => e.tweetId).map(e => [e.version, e.tweetId]);
+    writeState("claude", "1.0.0");
+    const replay = await prepare(true, "rewind", [source("claude", list.slice(0, 2))], draft, now);
+    await publish(replay, send, () => now);
+    expect(sent).toBe(2);
+    expect(replay.posts).toEqual([]);
+    expect(list.every(r => hasPostedLive("claude", r.version))).toBe(true);
+    expect(posted).toEqual([["1.0.1", "123"], ["1.0.2", "123"], ["1.0.3", "123"]]);
+    expect(pendingPosts()).toEqual([]);
+    expect(dailyPostCount(now)).toBe(1);
+    expect(readState("claude")).toBe("1.0.2");
+    const fullReplay = await prepare(true, "tip", [source("claude", list)], draft, now);
+    expect(fullReplay.posts).toEqual([]);
+    expect(readState("claude")).toBe("1.0.3");
+  });
+
+  test("file-ledger selection compares against the walked posted cursor", async () => {
+    appendLedger({ ts: now.toISOString(), product: "claude", version: "1.1.0", tweetId: "123", dryRun: false });
+    const thin = { ...release("claude", "1.1.1"), notes: "- Added tiny tweak" };
+    const plan = await prepare(true, "walked", [source("claude", [release("claude", "1.1.0"), thin])], draft, now);
+    expect(plan.posts).toEqual([]);
+    expect(readState("claude")).toBe("1.1.1");
+  });
+
   test("daily limit counts unique reserved/published versions and does not consume deferred versions", async () => {
     for (let i = 0; i < DAILY_PUBLICATION_LIMIT; i++) {
       appendLedger({ ts: now.toISOString(), product: "claude", version: `0.0.${i}`, runId: "old", dryRun: false });

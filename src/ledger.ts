@@ -56,10 +56,14 @@ export function postingDay(date: Date): string {
 }
 
 export function dailyPostCount(now: Date): number {
-  const keys = new Set<string>();
+  const latest = new Map<string, LedgerEntry>();
   for (const entry of readLedger()) {
-    if (!entry.dryRun && postingDay(new Date(entry.ts)) === postingDay(now)) {
-      keys.add(`${entry.product}:${entry.version}`);
+    if (!entry.dryRun) latest.set(`${entry.product}:${entry.version}`, entry);
+  }
+  const keys = new Set<string>();
+  for (const entry of latest.values()) {
+    if (postingDay(new Date(entry.ts)) === postingDay(now)) {
+      keys.add(`${entry.product}:${entry.tweetId ? `tweet:${entry.tweetId}` : `pending:${entry.version}`}`);
     }
   }
   return keys.size;
@@ -76,7 +80,7 @@ export function hasPostedLive(product: Product, version: string): boolean {
   );
 }
 
-export function appendLedger(entry: LedgerEntry): void {
+export function appendLedger(...entries: LedgerEntry[]): void {
   mkdirSync(dirname(LEDGER_PATH), { recursive: true });
-  appendFileSync(LEDGER_PATH, JSON.stringify(entry) + "\n", "utf8");
+  appendFileSync(LEDGER_PATH, entries.map(entry => JSON.stringify(entry) + "\n").join(""), "utf8");
 }
