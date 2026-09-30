@@ -85,6 +85,7 @@ export function coalescePatchReleases(releases: Release[]): Release {
   const range = `${first.displayVersion}→${tip.displayVersion}`;
   return {
     ...tip,
+    coveredVersions: releases.map(r => r.version),
     displayVersion: range,
     title: `${tip.title} (${range})`,
     notes: releases.map((r) => `## ${r.displayVersion}\n${r.notes.trim()}`).join("\n\n"),

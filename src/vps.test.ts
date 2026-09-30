@@ -22,6 +22,8 @@ let db: SqliteDatabase;
 let restores: (() => void)[];
 let sent: number;
 let failure: "none" | "x";
+let claudeVersions: string[];
+let afterReply: () => void;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "agent-release-sqlite-"));
@@ -33,11 +35,13 @@ beforeEach(() => {
   db = new SqliteDatabase(connection);
   sent = 0;
   failure = "none";
+  claudeVersions = ["1.0.1", "1.0.0"];
+  afterReply = () => {};
   globalThis.fetch = (async (input: string | URL | Request) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
     if (url.hostname === "api.github.com") {
       const codex = url.pathname.includes("/openai/");
-      return Response.json((codex ? ["1.0.0"] : ["1.0.1", "1.0.0"]).map(version => ({
+      return Response.json((codex ? ["1.0.0"] : claudeVersions).map(version => ({
         tag_name: `${codex ? "rust-v" : "v"}${version}`, html_url: release.url,
         body: "- Added support for custom commands and terminal sessions", draft: false, prerelease: false,
       })));
@@ -60,9 +64,10 @@ beforeEach(() => {
           expect(text).toBe(`官方：${release.url}`);
         }
       } finally { observer.close(); }
+      if (replyToId) afterReply();
       sent++;
       if (failure === "x") throw new Error("X response lost");
-      return replyToId ? "123457" : "123456";
+      return String(123455 + sent);
     }),
   ];
   restores = spies.map(spy => () => spy.mockRestore());
@@ -146,4 +151,64 @@ test("publication refuses a missing database instead of creating an empty ledger
   expect(result.exitCode).not.toBe(0);
   expect(result.stderr.toString()).toContain("unable to open database file");
   expect(existsSync(join(dir, "missing.sqlite"))).toBe(false);
+});
+
+
+test("SQLite coalesced members survive rewinds without the tip in the feed", async () => {
+  claudeVersions = ["1.0.3", "1.0.2", "1.0.1", "1.0.0"];
+  await runPublisher(db, false);
+  const posted = connection.query("SELECT version,status,tweet_id FROM publications ORDER BY version").all();
+  connection.query("UPDATE cursors SET version='1.0.0' WHERE product='claude'").run();
+  claudeVersions = ["1.0.2", "1.0.1", "1.0.0"];
+  await runPublisher(db, false);
+  expect(sent).toBe(2);
+  expect(posted).toEqual([
+    { version: "1.0.1", status: "posted", tweet_id: "123456" },
+    { version: "1.0.2", status: "posted", tweet_id: "123456" },
+    { version: "1.0.3", status: "posted", tweet_id: "123456" },
+  ]);
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.2" });
+});
+
+test("SQLite coalesced members consume only one daily slot", async () => {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
+  for (let i = 0; i < DAILY_PUBLICATION_LIMIT - 2; i++) connection.query("INSERT INTO publications (product,version,status,text,reserved_at,day,tweet_id) VALUES ('claude',?,'posted','history',?,?,?)").run(`0.0.${i}`, new Date().toISOString(), day, String(i));
+  claudeVersions = ["1.0.3", "1.0.2", "1.0.1", "1.0.0"];
+  await runPublisher(db, false);
+  claudeVersions.unshift("1.1.0");
+  await runPublisher(db, false);
+  expect(sent).toBe(4);
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.1.0" });
+  claudeVersions.unshift("1.2.0");
+  await runPublisher(db, false);
+  expect(sent).toBe(4);
+});
+
+for (const bundle of [false, true]) test(`SQLite zero-row cursor completion preserves pending (bundle=${bundle})`, async () => {
+  if (bundle) claudeVersions = ["1.0.3", "1.0.2", "1.0.1", "1.0.0"];
+  connection.exec("CREATE TRIGGER ignore_cursor BEFORE UPDATE ON cursors BEGIN SELECT RAISE(IGNORE); END");
+  await expect(runPublisher(db, false)).rejects.toThrow();
+  expect(sent).toBe(2);
+  expect(connection.query("SELECT version,status,tweet_id FROM publications").all()).toEqual([
+    { version: bundle ? "1.0.3" : "1.0.1", status: "pending", tweet_id: null },
+  ]);
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.0" });
+  await expect(runPublisher(db, false)).rejects.toThrow("Reconcile pending");
+  expect(sent).toBe(2);
+});
+
+test("SQLite changed cursor during X preserves pending and every bundle member", async () => {
+  claudeVersions = ["1.0.3", "1.0.2", "1.0.1", "1.0.0"];
+  afterReply = () => { connection.query("UPDATE cursors SET version='9.0.0' WHERE product='claude'").run(); };
+  await expect(runPublisher(db, false)).rejects.toThrow();
+  expect(connection.query("SELECT version,status FROM publications").all()).toEqual([{ version: "1.0.3", status: "pending" }]);
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "9.0.0" });
+});
+
+for (const action of ["ABORT", "IGNORE"]) test(`SQLite member ${action} rolls back the bundle completion`, async () => {
+  claudeVersions = ["1.0.3", "1.0.2", "1.0.1", "1.0.0"];
+  connection.exec(`CREATE TRIGGER fail_member BEFORE INSERT ON publications WHEN NEW.version='1.0.1' BEGIN SELECT RAISE(${action}${action === "ABORT" ? ", 'member failed'" : ""}); END`);
+  await expect(runPublisher(db, false)).rejects.toThrow();
+  expect(connection.query("SELECT version,status FROM publications").all()).toEqual([{ version: "1.0.3", status: "pending" }]);
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.0" });
 });

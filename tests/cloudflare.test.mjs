@@ -14,7 +14,7 @@ const day = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }
 /** Keep in sync with src/limits.ts */
 const DAILY_PUBLICATION_LIMIT = 12;
 
-async function setup(t, { preview = false, failX = false, failSource = false, failDraft = false, missingX = false } = {}) {
+async function setup(t, { preview = false, failX = false, failSource = false, failDraft = false, missingX = false, patchBundle = false } = {}) {
   const calls = { tweets: 0, drafts: 0 };
   let db;
   const secrets = {
@@ -43,7 +43,8 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
         if (url.hostname === 'api.github.com') {
           if (failSource && url.pathname.includes('/openai/')) return new Response('unavailable', { status: 503 });
           const codex = url.pathname.includes('/openai/');
-          const releases = ['1.0.1', '1.0.0'].map(version => ({ tag_name: `${codex ? 'rust-v' : 'v'}${version}`, html_url: `https://github.com/test/releases/${version}`, body: '- Added support for custom commands and terminal sessions', draft: false, prerelease: false }));
+          const versions = !codex && patchBundle ? ['1.0.3', '1.0.2', '1.0.1', '1.0.0'] : ['1.0.1', '1.0.0'];
+          const releases = versions.map(version => ({ tag_name: `${codex ? 'rust-v' : 'v'}${version}`, html_url: `https://github.com/test/releases/${version}`, body: '- Added support for custom commands and terminal sessions', draft: false, prerelease: false }));
           return Response.json(releases);
         }
         if (url.hostname === 'developers.openai.com' && url.pathname.includes('/codex/changelog')) {
@@ -233,4 +234,49 @@ test('reservation storage failure cannot reach X', async t => {
   assert.equal(result.noRetry, true);
   assert.equal(calls.tweets, 0);
   assert.equal((await db.prepare('SELECT count(*) AS n FROM publications').first()).n, 0);
+});
+
+
+test('D1 coalesced members share a post and survive a cursor rewind', async t => {
+  const { db, calls, run } = await setup(t, { patchBundle: true });
+  assert.equal((await run()).outcome, 'ok');
+  const rows = (await db.prepare("SELECT version,status,tweet_id FROM publications WHERE product='claude' ORDER BY version").all()).results;
+  await db.prepare("UPDATE cursors SET version='1.0.0' WHERE product='claude'").run();
+  assert.equal((await run()).outcome, 'ok');
+  assert.equal(calls.tweets, 8);
+  assert.deepEqual(rows, [
+    { version: '1.0.1', status: 'posted', tweet_id: '9001' },
+    { version: '1.0.2', status: 'posted', tweet_id: '9001' },
+    { version: '1.0.3', status: 'posted', tweet_id: '9001' },
+  ]);
+});
+
+test('D1 coalesced members leave the remaining daily slots available', async t => {
+  const { db, calls, run } = await setup(t, { patchBundle: true });
+  for (let i = 0; i < DAILY_PUBLICATION_LIMIT - 4; i++) await db.prepare("INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day) VALUES ('claude',?,'posted','history',?,?,?)").bind(`0.0.${i}`, String(i + 1), new Date().toISOString(), day()).run();
+  assert.equal((await run()).outcome, 'ok');
+  assert.equal(calls.tweets, 8);
+  assert.equal((await db.prepare("SELECT count(DISTINCT tweet_id) AS n FROM publications WHERE day=?").bind(day()).first()).n, DAILY_PUBLICATION_LIMIT);
+});
+
+for (const bundle of [false, true]) test(`D1 zero-row cursor completion preserves pending (bundle=${bundle})`, async t => {
+  const { db, calls, run } = await setup(t, { patchBundle: bundle });
+  await db.prepare("CREATE TRIGGER ignore_cursor BEFORE UPDATE ON cursors BEGIN SELECT RAISE(IGNORE); END").run();
+  assert.equal((await run()).outcome, 'exception');
+  assert.equal(calls.tweets, 2);
+  assert.deepEqual((await db.prepare("SELECT version,status,tweet_id FROM publications").all()).results, [
+    { version: bundle ? '1.0.3' : '1.0.1', status: 'pending', tweet_id: null },
+  ]);
+  assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.0.0');
+  assert.equal((await run()).outcome, 'exception');
+  assert.equal(calls.tweets, 2);
+});
+
+for (const action of ['ABORT', 'IGNORE']) test(`D1 member ${action} rolls back the bundle completion`, async t => {
+  const { db, calls, run } = await setup(t, { patchBundle: true });
+  await db.prepare(`CREATE TRIGGER fail_member BEFORE INSERT ON publications WHEN NEW.version='1.0.1' BEGIN SELECT RAISE(${action}${action === 'ABORT' ? ", 'member failed'" : ''}); END`).run();
+  assert.equal((await run()).outcome, 'exception');
+  assert.equal(calls.tweets, 2);
+  assert.deepEqual((await db.prepare("SELECT version,status FROM publications").all()).results, [{ version: '1.0.3', status: 'pending' }]);
+  assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.0.0');
 });
