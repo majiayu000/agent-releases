@@ -8,8 +8,8 @@
 
 - `cursors` 记录各产品处理进度；纯修复也可推进进度，因此游标不是发布凭证。
 - `publications` 以 `(product, version)` 为主键，保存正文、时间、北京时间日期和 tweet ID。
-- 发布前原子插入 `pending`。数据库唯一索引只允许整个账号存在一条 pending，插入同时检查当天最多 12 条及读取时的游标，防止并发运行重复占用。
-- X 返回 ID 后，在 D1 事务里同时标记 `posted` 和推进游标。超时、HTTP 错误、回写失败均抛错；pending 保留，后续任务停发。
+- 发布前原子插入 `pending`，其 `text` 保存实际正文和 `coveredVersions` 的 JSON。数据库唯一索引只允许整个账号存在一条 pending，插入同时检查当天最多 12 条及读取时的游标，防止并发运行重复占用。一个 bundle 占用一个名额。
+- X 返回 ID 后，在 D1 事务里同时记录全部成员、标记 `posted` 和推进游标，posted 的 `text` 保存实际正文。超时、HTTP 错误、回写失败均抛错；pending 及 bundle 成员信息保留，后续任务停发。
 - 先完成全部来源读取和草稿生成再写数据库。每次每产品最多发一条。没有初始化游标时只记录最新版本，不补发历史。
 - 预览不写表、不调用 X。每日限额同样影响预览选题。
 
@@ -57,11 +57,24 @@ bunx wrangler d1 execute DB --remote --file /tmp/agent-releases-import.sql
 
 ```sh
 bunx wrangler d1 execute DB --remote --command "SELECT product,version,status,tweet_id,reserved_at,posted_at FROM publications ORDER BY reserved_at DESC LIMIT 30"
-bunx wrangler d1 execute DB --remote --command "SELECT product,version,text,reserved_at FROM publications WHERE status='pending'"
+bunx wrangler d1 execute DB --remote --command "SELECT product,version,json_extract(text,'$.text') AS text,json_extract(text,'$.coveredVersions') AS covered_versions,reserved_at FROM publications WHERE status='pending'"
 ```
 
 `posted` 表示曾经发出，不代表帖子目前仍存在。打开 `https://x.com/i/status/ID` 或使用现有 `list X timeline` 工作流核对完整正文、版本及时间。不要仅凭最近一页没找到就认定未发送。
 
-核对期间先将 Worker 设为预览并等待正在运行的任务结束。确认已发：将该 pending 行的 `status` 改为 `posted`，填写真实 `tweet_id` 和 `posted_at`；下轮会依据账本跳过该版本并推进游标。确认未发：删除对应 pending 行，保持游标不变，让新运行重新生成。无法确认时保留 pending。人工发帖也必须记录到同一张表后再恢复自动发布。
+核对期间先将 Worker 设为预览并等待正在运行的任务结束。确认已发后，在同一个 SQLite 事务或 D1 `batch` 中执行以下三条语句。两组 `?` 均绑定核对过的根帖 ID 和发送时间；先补齐成员，再推进游标并确认 tip，不能仅修改 pending 行。任何语句失败都必须回滚。
+
+```sql
+INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day,posted_at)
+SELECT p.product,j.value,'posted',json_extract(p.text,'$.text'),?,p.reserved_at,p.day,?
+FROM publications p,json_each(p.text,'$.coveredVersions') j
+WHERE p.status='pending' AND j.value != p.version;
+UPDATE cursors SET version=(SELECT version FROM publications WHERE status='pending')
+WHERE product=(SELECT product FROM publications WHERE status='pending');
+UPDATE publications SET status='posted',text=json_extract(text,'$.text'),tweet_id=?,posted_at=?
+WHERE status='pending';
+```
+
+确认未发：删除对应 pending 行，保持游标不变，让新运行重新生成。无法确认时保留 pending。人工发帖也必须记录到同一张表后再恢复自动发布。旧文件账本核对时，确认记录应保留 reservation 的 `coveredVersions`，全部成员共享同一个 tweet ID。
 
 D1 事务无法与 X 请求组成一个原子事务；该方案优先避免重复，结果未知时仍需人工核对。[D1 事务说明](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch)

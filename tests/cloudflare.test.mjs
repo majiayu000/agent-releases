@@ -14,7 +14,7 @@ const day = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }
 /** Keep in sync with src/limits.ts */
 const DAILY_PUBLICATION_LIMIT = 12;
 
-async function setup(t, { preview = false, failX = false, failSource = false, failDraft = false, missingX = false, patchBundle = false } = {}) {
+async function setup(t, { preview = false, failX = false, failSource = false, failDraft = false, missingX = false, patchBundle = false, thinOlder = false } = {}) {
   const calls = { tweets: 0, drafts: 0 };
   let db;
   const secrets = {
@@ -43,8 +43,8 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
         if (url.hostname === 'api.github.com') {
           if (failSource && url.pathname.includes('/openai/')) return new Response('unavailable', { status: 503 });
           const codex = url.pathname.includes('/openai/');
-          const versions = !codex && patchBundle ? ['1.0.3', '1.0.2', '1.0.1', '1.0.0'] : ['1.0.1', '1.0.0'];
-          const releases = versions.map(version => ({ tag_name: `${codex ? 'rust-v' : 'v'}${version}`, html_url: `https://github.com/test/releases/${version}`, body: '- Added support for custom commands and terminal sessions', draft: false, prerelease: false }));
+          const versions = !codex && thinOlder ? ['1.1.0', '1.0.1', '1.0.0'] : !codex && patchBundle ? ['1.0.3', '1.0.2', '1.0.1', '1.0.0'] : ['1.0.1', '1.0.0'];
+          const releases = versions.map(version => ({ tag_name: `${codex ? 'rust-v' : 'v'}${version}`, html_url: `https://github.com/test/releases/${version}`, body: !codex && thinOlder ? '- Added tiny tweak\n- Fixed a crash in terminal session reconnect' : '- Added support for custom commands and terminal sessions', draft: false, prerelease: false }));
           return Response.json(releases);
         }
         if (url.hostname === 'developers.openai.com' && url.pathname.includes('/codex/changelog')) {
@@ -66,7 +66,7 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
           if (body.reply?.in_reply_to_tweet_id) {
             assert.match(body.text, /^官方：https?:\/\//);
           } else {
-            assert.equal(body.text, pending.results[0].text);
+            assert.equal(body.text, JSON.parse(pending.results[0].text).text);
             assert.ok(!/https?:\/\//i.test(body.text), 'root tweet must have zero links');
           }
           assert.match(request.headers.get('authorization'), /OAuth /);
@@ -279,4 +279,40 @@ for (const action of ['ABORT', 'IGNORE']) test(`D1 member ${action} rolls back t
   assert.equal(calls.tweets, 2);
   assert.deepEqual((await db.prepare("SELECT version,status FROM publications").all()).results, [{ version: '1.0.3', status: 'pending' }]);
   assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.0.0');
+});
+
+test('D1 rewind skips a thin older patch before a later posted release', async t => {
+  const { db, calls, run } = await setup(t, { thinOlder: true });
+  await db.prepare("INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day) VALUES ('claude','1.1.0','posted','history','111',?,?)")
+    .bind(new Date().toISOString(), day()).run();
+  assert.equal((await run()).outcome, 'ok');
+  assert.equal(calls.tweets, 6);
+  assert.equal(calls.drafts, 3);
+  assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.1.0');
+});
+
+test('D1 failed completion retains bundle members for manual reconciliation', async t => {
+  const { db, calls, run } = await setup(t, { patchBundle: true });
+  await db.prepare("CREATE TRIGGER fail_completion BEFORE UPDATE ON cursors BEGIN SELECT RAISE(ABORT, 'completion failed'); END").run();
+  assert.equal((await run()).outcome, 'exception');
+  assert.equal(calls.tweets, 2);
+  await db.prepare('DROP TRIGGER fail_completion').run();
+  const pending = await db.prepare("SELECT text FROM publications WHERE status='pending'").first();
+  assert.deepEqual(JSON.parse(pending.text).coveredVersions, ['1.0.1', '1.0.2', '1.0.3']);
+  await db.batch([
+    db.prepare(`INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day,posted_at)
+      SELECT p.product,j.value,'posted',json_extract(p.text,'$.text'),?,p.reserved_at,p.day,?
+      FROM publications p,json_each(p.text,'$.coveredVersions') j
+      WHERE p.status='pending' AND j.value != p.version`).bind('9001', new Date().toISOString()),
+    db.prepare("UPDATE cursors SET version=(SELECT version FROM publications WHERE status='pending') WHERE product=(SELECT product FROM publications WHERE status='pending')"),
+    db.prepare("UPDATE publications SET status='posted',text=json_extract(text,'$.text'),tweet_id=?,posted_at=? WHERE status='pending'").bind('9001', new Date().toISOString()),
+  ]);
+  await db.prepare("UPDATE cursors SET version='1.0.0' WHERE product='claude'").run();
+  assert.equal((await run()).outcome, 'ok');
+  assert.equal(calls.tweets, 8);
+  assert.deepEqual((await db.prepare("SELECT version,status,tweet_id FROM publications WHERE product='claude' ORDER BY version").all()).results, [
+    { version: '1.0.1', status: 'posted', tweet_id: '9001' },
+    { version: '1.0.2', status: 'posted', tweet_id: '9001' },
+    { version: '1.0.3', status: 'posted', tweet_id: '9001' },
+  ]);
 });

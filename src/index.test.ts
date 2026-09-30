@@ -153,6 +153,34 @@ describe("publication recovery", () => {
     expect(readState("claude")).toBe("1.1.1");
   });
 
+  test("file-ledger rewind keeps a thin older patch before a later posted release", async () => {
+    appendLedger({ ts: now.toISOString(), product: "claude", version: "1.1.0", tweetId: "123", dryRun: false });
+    const thin = { ...release("claude", "1.0.1"), notes: "- Added tiny tweak" };
+    const plan = await prepare(true, "older", [source("claude", [thin, release("claude", "1.1.0")])], draft, now);
+    expect(plan.posts).toEqual([]);
+    expect(readState("claude")).toBe("1.1.0");
+  });
+
+  test("file-ledger manual confirmation retains every reserved bundle member", async () => {
+    const list = ["1.0.1", "1.0.2", "1.0.3"].map(version => release("claude", version));
+    const plan = await prepare(true, "uncertain-bundle", [source("claude", list)], draft, now);
+    let sent = 0;
+    await expect(publish(plan, async () => {
+      if (++sent === 2) throw new Error("reply acknowledgement lost");
+      return "123";
+    }, () => now)).rejects.toThrow("Reconcile pending");
+    // The operator confirms the root on X and keeps the durable reservation data.
+    appendLedger({ ...pendingPosts()[0]!, tweetId: "123" });
+    writeState("claude", "1.0.0");
+    const replay = await prepare(true, "reconciled", [source("claude", list.slice(0, 2))], draft, now);
+    await publish(replay, async () => { sent++; return "456"; }, () => now);
+    expect(sent).toBe(2);
+    expect(replay.posts).toEqual([]);
+    expect(list.every(r => hasPostedLive("claude", r.version))).toBe(true);
+    expect(dailyPostCount(now)).toBe(1);
+    expect(pendingPosts()).toEqual([]);
+  });
+
   test("daily limit counts unique reserved/published versions and does not consume deferred versions", async () => {
     for (let i = 0; i < DAILY_PUBLICATION_LIMIT; i++) {
       appendLedger({ ts: now.toISOString(), product: "claude", version: `0.0.${i}`, runId: "old", dryRun: false });
@@ -401,6 +429,20 @@ describe("release content", () => {
 
 
 describe("radar coalesce / de-noise", () => {
+  test("posted releases separate patch bundles without skipping an earlier valuable patch", () => {
+    const thin = (version: string) => ({ ...release("claude", version), notes: "- Added tiny tweak" });
+    const posted = new Set(["1.0.2"]);
+    const separated = selectRadarCandidate([thin("1.0.1"), thin("1.0.2"), thin("1.0.3")], "1.0.0", posted);
+    expect(separated.candidate).toBeNull();
+    expect(separated.skip.map(r => r.version)).toEqual(["1.0.1", "1.0.2", "1.0.3"]);
+    const valuable = selectRadarCandidate([release("claude", "1.0.1"), thin("1.0.2"), thin("1.0.3")], "1.0.0", posted);
+    expect(valuable.candidate?.version).toBe("1.0.1");
+    expect(valuable.skip).toEqual([]);
+    const bundle = selectRadarCandidate([thin("1.0.1"), thin("1.0.2"), thin("1.0.3")], "1.0.0", new Set(["1.0.3"]));
+    expect(bundle.candidate?.coveredVersions).toEqual(["1.0.1", "1.0.2"]);
+    expect(bundle.skip).toEqual([]);
+  });
+
   test("version bump kind and empty-chore / valuable heuristics", () => {
     expect(versionBumpKind("1.2.3", "1.2.2")).toBe("patch");
     expect(versionBumpKind("1.3.0", "1.2.9")).toBe("minor");
