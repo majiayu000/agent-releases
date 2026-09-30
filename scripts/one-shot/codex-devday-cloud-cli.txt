@@ -1,0 +1,21 @@
+【Codex】DevDay：可复用云环境 + CLI 语音 /agents 视图
+
+要点：
+
+• Codex Cloud：可在电脑 / 手机 / 云端跨设备跑任务；可复用开发环境一次配好依赖与权限，团队共用审批过的设置
+• 刷新版 Codex CLI：可用语音启动与引导任务；新 `/agents` 视图方便委派并跟踪多任务
+• 日常体验：提示编辑、会话恢复、worktree 更顺手；终端 UI 更干净，长会话更好读
+• Code Review：桌面端可读摘要与 diff、向 Codex 提问；还可开自动云端初审
+• Codex Security Cloud（研究预览）：按需或定时扫仓、去重调查并在云端准备修复
+
+谁受影响：
+
+• Plus / Pro / Business / Edu / Enterprise 等用 Codex 云任务与 CLI 的开发者（Security Cloud 另看计划与工作区权限）
+
+怎么验：
+
+• ChatGPT → Work in Cloud → 创建/选用 Environment 后开任务；CLI 看是否有语音与 `/agents`
+
+👇 详情请看
+---
+官方：https://openai.com/index/devday-2026-recap/
