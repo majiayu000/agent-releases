@@ -74,6 +74,17 @@ describe("codex app radar", () => {
     const major = appRelease("codex-2027-01-01-app", "27.101");
     expect(selectRadarCandidate([patch, major], "codex-2026-12-30-app")).toEqual({ skip: [patch], candidate: major });
   });
+
+  test("skipped date-only notes preserve the last build for a major transition", () => {
+    const patch = appRelease("codex-2026-12-30-app", "26.1230");
+    const major = appRelease("codex-2027-01-01-app", "27.101");
+    for (const notes of ["- Fixed a crash", "- chore: bump dependencies"]) {
+      const dateOnly = appRelease("codex-2026-12-31-app", "2026-12-31", notes);
+      expect(selectRadarCandidate([patch, dateOnly, major], "codex-2026-12-29-app")).toEqual({
+        skip: [patch, dateOnly], candidate: major,
+      });
+    }
+  });
 });
 
 describe("codex app changelog", () => {

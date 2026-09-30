@@ -126,7 +126,7 @@ export function selectRadarCandidate(releases: Release[], previousVersion: strin
     const bump = appBuild
       ? priorAppBuild ? versionBumpKind(appBuild, priorAppBuild) : "patch"
       : versionBumpKind(release.version, prior);
-    priorAppBuild = appBuild;
+    if (appBuild) priorAppBuild = appBuild;
     prior = release.version;
     if (!notable || isEmptyChore(release.notes)) {
       absorbPatches();
