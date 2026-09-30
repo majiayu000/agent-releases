@@ -23,6 +23,7 @@ let restores: (() => void)[];
 let sent: number;
 let failure: "none" | "x";
 let claudeVersions: string[];
+let claudeNotes: string;
 let afterReply: () => void;
 
 beforeEach(() => {
@@ -36,6 +37,7 @@ beforeEach(() => {
   sent = 0;
   failure = "none";
   claudeVersions = ["1.0.1", "1.0.0"];
+  claudeNotes = "- Added support for custom commands and terminal sessions";
   afterReply = () => {};
   globalThis.fetch = (async (input: string | URL | Request) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
@@ -43,7 +45,7 @@ beforeEach(() => {
       const codex = url.pathname.includes("/openai/");
       return Response.json((codex ? ["1.0.0"] : claudeVersions).map(version => ({
         tag_name: `${codex ? "rust-v" : "v"}${version}`, html_url: release.url,
-        body: "- Added support for custom commands and terminal sessions", draft: false, prerelease: false,
+        body: claudeNotes, draft: false, prerelease: false,
       })));
     }
     if (url.hostname === "developers.openai.com") return new Response('<li id="codex-2026-01-01-app" data-codex-topics="codex-app"><h3>Initial 26.100</h3><article><p>Added desktop shell</p></article></li>');
@@ -58,7 +60,8 @@ beforeEach(() => {
       const observer = new Database(join(dir, "state.sqlite"), { readonly: true });
       try {
         if (!replyToId) {
-          expect(observer.query("SELECT text FROM publications WHERE status='pending'").get()).toEqual({ text });
+          const reservation = observer.query("SELECT text FROM publications WHERE status='pending'").get() as { text: string };
+          expect(JSON.parse(reservation.text).text).toBe(text);
           expect(text).not.toMatch(/https?:\/\//i);
         } else {
           expect(text).toBe(`官方：${release.url}`);
@@ -211,4 +214,44 @@ for (const action of ["ABORT", "IGNORE"]) test(`SQLite member ${action} rolls ba
   await expect(runPublisher(db, false)).rejects.toThrow();
   expect(connection.query("SELECT version,status FROM publications").all()).toEqual([{ version: "1.0.3", status: "pending" }]);
   expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.0" });
+});
+
+test("SQLite rewind skips a thin older patch before a later posted release", async () => {
+  claudeVersions = ["1.1.0", "1.0.1", "1.0.0"];
+  claudeNotes = "- Added tiny tweak\n- Fixed a crash in terminal session reconnect";
+  connection.query("INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day) VALUES ('claude','1.1.0','posted','history','111',?,?)")
+    .run(new Date().toISOString(), new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date()));
+  await runPublisher(db, false);
+  expect(sent).toBe(0);
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.1.0" });
+});
+
+test("SQLite failed completion can reconcile durable bundle members after reopening", async () => {
+  claudeVersions = ["1.0.3", "1.0.2", "1.0.1", "1.0.0"];
+  connection.exec("CREATE TRIGGER fail_completion BEFORE UPDATE ON cursors BEGIN SELECT RAISE(ABORT, 'completion failed'); END");
+  await expect(runPublisher(db, false)).rejects.toThrow("completion failed");
+  connection.close();
+  connection = new Database(join(dir, "state.sqlite"), { strict: true });
+  db = new SqliteDatabase(connection);
+  connection.exec("DROP TRIGGER fail_completion");
+  const row = connection.query("SELECT text FROM publications WHERE status='pending'").get() as { text: string };
+  expect(JSON.parse(row.text).coveredVersions).toEqual(["1.0.1", "1.0.2", "1.0.3"]);
+  await db.batch([
+    db.prepare(`INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day,posted_at)
+      SELECT p.product,j.value,'posted',json_extract(p.text,'$.text'),?,p.reserved_at,p.day,?
+      FROM publications p,json_each(p.text,'$.coveredVersions') j
+      WHERE p.status='pending' AND j.value != p.version`).bind("123456", new Date().toISOString()),
+    db.prepare("UPDATE cursors SET version=(SELECT version FROM publications WHERE status='pending') WHERE product=(SELECT product FROM publications WHERE status='pending')"),
+    db.prepare("UPDATE publications SET status='posted',text=json_extract(text,'$.text'),tweet_id=?,posted_at=? WHERE status='pending'").bind("123456", new Date().toISOString()),
+  ]);
+  connection.query("UPDATE cursors SET version='1.0.0' WHERE product='claude'").run();
+  claudeVersions = ["1.0.2", "1.0.1", "1.0.0"];
+  await runPublisher(db, false);
+  expect(sent).toBe(2);
+  expect(connection.query("SELECT version,status,tweet_id FROM publications ORDER BY version").all()).toEqual([
+    { version: "1.0.1", status: "posted", tweet_id: "123456" },
+    { version: "1.0.2", status: "posted", tweet_id: "123456" },
+    { version: "1.0.3", status: "posted", tweet_id: "123456" },
+  ]);
+  expect(connection.query("SELECT count(DISTINCT tweet_id) AS n FROM publications").get()).toEqual({ n: 1 });
 });

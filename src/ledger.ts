@@ -12,6 +12,8 @@ export type LedgerEntry = {
   ts: string;
   product: Product;
   version: string;
+  /** Bundle identities retained when an operator confirms the reserved post. */
+  coveredVersions?: string[];
   tweetId?: string;
   issueUrl?: string;
   dryRun: boolean;
@@ -74,7 +76,7 @@ export function hasPostedLive(product: Product, version: string): boolean {
   return readLedger().some(
     (e) =>
       e.product === product &&
-      e.version === version &&
+      (e.version === version || e.coveredVersions?.includes(version)) &&
       Boolean(e.tweetId) &&
       e.dryRun === false,
   );

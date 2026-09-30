@@ -56,17 +56,8 @@ export async function prepare(
       }
       const releases = await source.fetchSince(prev);
       console.log(`[walk] ${source.product}: ${releases.length} new releases`);
-      let cursor = prev;
-      const fresh: typeof releases = [];
-      for (const release of releases) {
-        if (hasPostedLive(source.product, release.version)) {
-          cursor = release.version;
-          updates.push({ product: source.product, version: release.version });
-        } else {
-          fresh.push(release);
-        }
-      }
-      const { skip, candidate } = selectRadarCandidate(fresh, cursor);
+      const posted = new Set(releases.filter(release => hasPostedLive(source.product, release.version)).map(release => release.version));
+      const { skip, candidate } = selectRadarCandidate(releases, prev, posted);
       for (const release of skip) updates.push({ product: source.product, version: release.version });
       if (!candidate) continue;
       if (live && plan.posts.length >= remaining) {
@@ -85,7 +76,8 @@ export async function prepare(
   if (live) {
     for (const update of updates) writeState(update.product, update.version);
     for (const { release, text } of plan.posts) {
-      appendLedger({ ts: now.toISOString(), product: release.product, version: release.version, dryRun: false, runId, text });
+      appendLedger({ ts: now.toISOString(), product: release.product, version: release.version,
+        coveredVersions: release.coveredVersions, dryRun: false, runId, text });
     }
   }
   return plan;

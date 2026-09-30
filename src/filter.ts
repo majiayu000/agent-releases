@@ -106,7 +106,7 @@ export type RadarSelection = {
  * - consecutive patches bundle into one tip post when 2+; a lone patch posts only if clearly valuable
  * - prefer a major/minor in the same window over flushing a prior patch bundle
  */
-export function selectRadarCandidate(releases: Release[], previousVersion: string | null): RadarSelection {
+export function selectRadarCandidate(releases: Release[], previousVersion: string | null, posted = new Set<string>()): RadarSelection {
   const skip: Release[] = [];
   const patchBuffer: Release[] = [];
   let prior = previousVersion;
@@ -118,6 +118,15 @@ export function selectRadarCandidate(releases: Release[], previousVersion: strin
   };
 
   for (const release of releases) {
+    if (posted.has(release.version)) {
+      // A posted release separates patch bundles but still supplies the next
+      // release's predecessor. Do not advance past an earlier postable bundle.
+      if (patchBuffer.length >= 2 || (patchBuffer.length === 1 && isClearlyValuable(patchBuffer[0]!.notes))) break;
+      absorbPatches();
+      skip.push(release);
+      prior = release.version;
+      continue;
+    }
     const notable = isNotable(release.notes);
     if (!notable || isEmptyChore(release.notes)) {
       absorbPatches();
