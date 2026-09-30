@@ -5,10 +5,76 @@ import {
   compareChangelogIds,
   parseCodexAppEntries,
 } from "./sources/codex-app.ts";
-import { isNotable, pickBullets } from "./filter.ts";
+import { isNotable, pickBullets, selectRadarCandidate } from "./filter.ts";
 import { postHeader, TWEET_VERSION_KEY } from "./sources/types.ts";
+import type { Release } from "./sources/types.ts";
 
 const fixture = readFileSync("tests/fixtures/codex-changelog-app-sample.html", "utf8");
+
+const appRelease = (version: string, displayVersion: string, notes = "- Added tiny tweak"): Release => ({
+  product: "codex_app", version, displayVersion, title: "Codex app",
+  notes, url: `https://developers.openai.com/codex/changelog#${version}`,
+});
+
+describe("codex app radar", () => {
+  test("month-boundary slugs coalesce by build and keep the tip slug", () => {
+    const releases = [
+      appRelease("codex-2026-09-28-app", "26.928"),
+      appRelease("codex-2026-09-29-app", "26.929"),
+      appRelease("codex-2026-10-01-app", "26.1001"),
+    ];
+    const result = selectRadarCandidate(releases, "codex-2026-09-27-app");
+    expect(result.skip).toEqual([]);
+    expect(result.candidate?.version).toBe(releases[2]!.version);
+    expect(result.candidate?.displayVersion).toBe("26.928→26.1001");
+    for (const release of releases) expect(result.candidate?.notes).toContain(`## ${release.displayVersion}`);
+    expect(result.candidate?.url).toBe(releases[2]!.url);
+  });
+
+  test("a lone thin build is skipped even when its cursor is a date slug", () => {
+    const release = appRelease("codex-2026-10-01-app", "26.1001");
+    expect(selectRadarCandidate([release], "codex-2026-09-30-app")).toEqual({ skip: [release], candidate: null });
+  });
+
+  test("same-day app and browser ids with builds coalesce", () => {
+    for (const build of ["26.909", "26.908"]) {
+      const releases = [
+        appRelease("codex-2026-09-11-app", "26.908"),
+        appRelease("codex-2026-09-11-browser", build),
+      ];
+      const result = selectRadarCandidate(releases, "codex-2026-09-10-app");
+      expect(result.skip).toEqual([]);
+      expect(result.candidate?.version).toBe(releases[1]!.version);
+      expect(result.candidate?.displayVersion).toBe(`26.908→${build}`);
+    }
+  });
+
+  test("equal date-only ids cannot discard a preceding patch buffer", () => {
+    const releases = [
+      appRelease("codex-2026-09-10-app", "26.908"),
+      appRelease("codex-2026-09-11-app", "26.909"),
+      appRelease("codex-2026-09-11-browser", "2026-09-11"),
+    ];
+    const result = selectRadarCandidate(releases, "codex-2026-09-09-app");
+    expect(result.skip).toEqual([]);
+    expect(result.candidate?.displayVersion).toBe("26.908→2026-09-11");
+    expect(result.candidate?.notes).toContain("## 26.908");
+  });
+
+  test("skipped build notes still establish the next build comparison", () => {
+    const skipped = appRelease("codex-2026-09-30-app", "26.930", "- Fixed a crash");
+    const thin = appRelease("codex-2026-10-01-app", "26.1001");
+    expect(selectRadarCandidate([skipped, thin], "codex-2026-09-29-app")).toEqual({ skip: [skipped, thin], candidate: null });
+  });
+
+  test("date-only announcements and build-major changes remain postable", () => {
+    const announcement = parseCodexAppEntries(fixture)[1]!;
+    expect(selectRadarCandidate([announcement], "codex-2026-08-24-app").candidate).toBe(announcement);
+    const patch = appRelease("codex-2026-12-31-app", "26.1231");
+    const major = appRelease("codex-2027-01-01-app", "27.101");
+    expect(selectRadarCandidate([patch, major], "codex-2026-12-30-app")).toEqual({ skip: [patch], candidate: major });
+  });
+});
 
 describe("codex app changelog", () => {
   test("parses only topics that include codex-app", () => {
