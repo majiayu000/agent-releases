@@ -145,6 +145,67 @@ describe("publication recovery", () => {
     expect(readState("claude")).toBe("2.0.0");
   });
 
+  test("coalesced file-ledger members survive rewinds and count as one post", async () => {
+    const list = ["1.0.1", "1.0.2", "1.0.3"].map(version => release("claude", version));
+    const plan = await prepare(true, "bundle", [source("claude", list)], draft, now);
+    expect(plan.posts.map(p => p.release.displayVersion)).toEqual(["1.0.1→1.0.3"]);
+    expect(dailyPostCount(now)).toBe(1);
+    let sent = 0;
+    const send = async () => String(123 + sent++);
+    await publish(plan, send, () => now);
+    const posted = readLedger().filter(e => e.tweetId && !e.replyPending).map(e => [e.version, e.tweetId]);
+    writeState("claude", "1.0.0");
+    const replay = await prepare(true, "rewind", [source("claude", list.slice(0, 2))], draft, now);
+    await publish(replay, send, () => now);
+    expect(sent).toBe(2);
+    expect(replay.posts).toEqual([]);
+    expect(list.every(r => hasPostedLive("claude", r.version))).toBe(true);
+    expect(posted).toEqual([["1.0.1", "123"], ["1.0.2", "123"], ["1.0.3", "123"]]);
+    expect(pendingPosts()).toEqual([]);
+    expect(dailyPostCount(now)).toBe(1);
+    expect(readState("claude")).toBe("1.0.2");
+    const fullReplay = await prepare(true, "tip", [source("claude", list)], draft, now);
+    expect(fullReplay.posts).toEqual([]);
+    expect(readState("claude")).toBe("1.0.3");
+  });
+
+  test("file-ledger selection compares against the walked posted cursor", async () => {
+    appendLedger({ ts: now.toISOString(), product: "claude", version: "1.1.0", tweetId: "123", dryRun: false });
+    const thin = { ...release("claude", "1.1.1"), notes: "- Added tiny tweak" };
+    const plan = await prepare(true, "walked", [source("claude", [release("claude", "1.1.0"), thin])], draft, now);
+    expect(plan.posts).toEqual([]);
+    expect(readState("claude")).toBe("1.1.1");
+  });
+
+  test("file-ledger rewind keeps a thin older patch before a later posted release", async () => {
+    appendLedger({ ts: now.toISOString(), product: "claude", version: "1.1.0", tweetId: "123", dryRun: false });
+    const thin = { ...release("claude", "1.0.1"), notes: "- Added tiny tweak" };
+    const plan = await prepare(true, "older", [source("claude", [thin, release("claude", "1.1.0")])], draft, now);
+    expect(plan.posts).toEqual([]);
+    expect(readState("claude")).toBe("1.1.0");
+  });
+
+  test("file-ledger manual confirmation retains every reserved bundle member", async () => {
+    const list = ["1.0.1", "1.0.2", "1.0.3"].map(version => release("claude", version));
+    const plan = await prepare(true, "uncertain-bundle", [source("claude", list)], draft, now);
+    let sent = 0;
+    await expect(publish(plan, async () => {
+      if (++sent === 2) throw new Error("reply acknowledgement lost");
+      return "123";
+    }, () => now)).rejects.toThrow("Reconcile pending");
+    // The operator confirms both the root and reply and keeps the bundle data.
+    expect(list.every(r => !hasPostedLive("claude", r.version))).toBe(true);
+    appendLedger({ ...pendingPosts()[0]!, tweetId: "123", replyPending: false });
+    writeState("claude", "1.0.0");
+    const replay = await prepare(true, "reconciled", [source("claude", list.slice(0, 2))], draft, now);
+    await publish(replay, async () => { sent++; return "456"; }, () => now);
+    expect(sent).toBe(2);
+    expect(replay.posts).toEqual([]);
+    expect(list.every(r => hasPostedLive("claude", r.version))).toBe(true);
+    expect(dailyPostCount(now)).toBe(1);
+    expect(pendingPosts()).toEqual([]);
+  });
+
   test("daily limit counts unique reserved/published versions and does not consume deferred versions", async () => {
     for (let i = 0; i < DAILY_PUBLICATION_LIMIT; i++) {
       appendLedger({ ts: now.toISOString(), product: "claude", version: `0.0.${i}`, runId: "old", dryRun: false });
@@ -169,6 +230,56 @@ describe("publication recovery", () => {
     expect(readLedger).toThrow("Invalid posted.jsonl entry");
     writeFileSync(".state/last_posted_claude.txt", "\n");
     expect(() => readState("claude")).toThrow("Empty state");
+  });
+
+  test.each(["1.0.2", { version: "1.0.2" }, null, 12, true, [""], ["1.0.2", 12], [null]]
+    .map(coveredVersions => ({ coveredVersions })))(
+    "malformed coveredVersions %j fails before publication effects", async ({ coveredVersions }) => {
+      const ledger = JSON.stringify({ ts: now.toISOString(), product: "claude", version: "1.0.3",
+        dryRun: false, tweetId: "123", coveredVersions }) + "\n";
+      writeFileSync(".state/posted.jsonl", ledger);
+      const error = "Invalid posted.jsonl entry: refusing to publish";
+      expect(readLedger).toThrow(error);
+      expect(() => hasPostedLive("claude", "1.0.2")).toThrow(error);
+      let calls = 0;
+      const uncalledSource: Source = { product: "claude",
+        fetchLatest: async () => { calls++; return release(); },
+        fetchSince: async () => { calls++; return [release()]; } };
+      await expect(prepare(true, "invalid-bundle", [uncalledSource], async () => {
+        calls++; return "must not draft";
+      }, now)).rejects.toThrow(error);
+      await expect(publish({ runId: "invalid-bundle", day: "2026-09-10",
+        posts: [{ release: release(), text: "must not send" }] }, async () => {
+        calls++; return "456";
+      }, () => now)).rejects.toThrow(error);
+      expect(calls).toBe(0);
+      expect(readState("claude")).toBe("1.0.0");
+      expect(readFileSync(".state/posted.jsonl", "utf8")).toBe(ledger);
+    },
+  );
+
+  test.each(["1.0.2", { version: "1.0.2" }])("export CLI rejects malformed coveredVersions %j without SQL", coveredVersions => {
+    const ledger = JSON.stringify({ ts: now.toISOString(), product: "claude", version: "1.0.3",
+      dryRun: false, tweetId: "123", coveredVersions }) + "\n";
+    writeFileSync(".state/posted.jsonl", ledger);
+    const exported = Bun.spawnSync(["bun", join(root, "scripts/export-d1.ts")], { cwd: dir });
+    expect(exported.exitCode).toBe(1);
+    expect(exported.stdout.toString()).toBe("");
+    expect(exported.stderr.toString()).toContain("Invalid posted.jsonl entry: refusing to publish");
+    expect(readState("claude")).toBe("1.0.0");
+    expect(readFileSync(".state/posted.jsonl", "utf8")).toBe(ledger);
+  });
+
+  test("coveredVersions accepts absent and array values without changing bundle identities", () => {
+    const entries = [undefined, [], ["1.0.1", "1.0.2", "1.0.3"]].map(coveredVersions => ({
+      ts: now.toISOString(), product: "claude" as const, version: "1.0.3", dryRun: false,
+      tweetId: "123", coveredVersions,
+    }));
+    appendLedger(...entries);
+    expect(readLedger()).toEqual(entries);
+    expect(hasPostedLive("claude", "1.0.2")).toBe(true);
+    expect(hasPostedLive("claude", "1.0.3")).toBe(true);
+    expect(hasPostedLive("claude", "1.0")).toBe(false);
   });
 
   test("live CLI modes cannot bypass D1 even from a fresh Actions attempt", () => {
@@ -393,6 +504,20 @@ describe("release content", () => {
 
 
 describe("radar coalesce / de-noise", () => {
+  test("posted releases separate patch bundles without skipping an earlier valuable patch", () => {
+    const thin = (version: string) => ({ ...release("claude", version), notes: "- Added tiny tweak" });
+    const posted = new Set(["1.0.2"]);
+    const separated = selectRadarCandidate([thin("1.0.1"), thin("1.0.2"), thin("1.0.3")], "1.0.0", posted);
+    expect(separated.candidate).toBeNull();
+    expect(separated.skip.map(r => r.version)).toEqual(["1.0.1", "1.0.2", "1.0.3"]);
+    const valuable = selectRadarCandidate([release("claude", "1.0.1"), thin("1.0.2"), thin("1.0.3")], "1.0.0", posted);
+    expect(valuable.candidate?.version).toBe("1.0.1");
+    expect(valuable.skip).toEqual([]);
+    const bundle = selectRadarCandidate([thin("1.0.1"), thin("1.0.2"), thin("1.0.3")], "1.0.0", new Set(["1.0.3"]));
+    expect(bundle.candidate?.coveredVersions).toEqual(["1.0.1", "1.0.2"]);
+    expect(bundle.skip).toEqual([]);
+  });
+
   test("version bump kind and empty-chore / valuable heuristics", () => {
     expect(versionBumpKind("1.2.3", "1.2.2")).toBe("patch");
     expect(versionBumpKind("1.3.0", "1.2.9")).toBe("minor");

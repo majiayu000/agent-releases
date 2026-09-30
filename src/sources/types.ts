@@ -4,8 +4,12 @@ export type Release = {
   product: Product;
   /** Tag used for state / de-dupe, e.g. 2.1.261 or rust-v0.153.0 or 1.0.13 */
   version: string;
+  /** Version identities covered by one coalesced post, including the tip. */
+  coveredVersions?: string[];
   /** Human version shown in tweet */
   displayVersion: string;
+  /** Prior numbered Codex App build from the same feed; comparison only. */
+  previousAppBuild?: string;
   title: string;
   notes: string;
   url: string;
