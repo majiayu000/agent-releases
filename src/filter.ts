@@ -119,6 +119,10 @@ export function selectRadarCandidate(releases: Release[], previousVersion: strin
   for (const release of releases) {
     const notable = isNotable(release.notes);
     if (!notable || isEmptyChore(release.notes)) {
+      // Flush a postable buffer below; leave the interrupting release for the next run.
+      if (patchBuffer.length >= 2 || (patchBuffer.length === 1 && isClearlyValuable(patchBuffer[0]!.notes))) {
+        break;
+      }
       absorbPatches();
       skip.push(release);
       prior = release.version;
