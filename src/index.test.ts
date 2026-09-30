@@ -369,6 +369,39 @@ describe("release content", () => {
 
 
 describe("radar coalesce / de-noise", () => {
+  test.each([
+    "Build a plugin marketplace for team sharing",
+    "Style the projects sidebar with the new theme",
+    "Minor latency win for long tool calls",
+    "Internal hooks for third-party agents",
+  ])("keeps feature prose postable: %s", (bullet) => {
+    const notes = `- ${bullet}`;
+    expect(isNotable(notes)).toBe(true);
+    expect(isEmptyChore(notes)).toBe(false);
+    for (const version of ["1.1.0", "2.0.0"]) {
+      const r = { ...release("claude", version), notes };
+      expect(selectRadarCandidate([r], "1.0.0")).toEqual({ skip: [], candidate: r });
+    }
+  });
+
+  test.each([
+    "build: switch the bundler",
+    "build(deps): refresh tooling",
+    "chore: tidy package metadata",
+    "ci: refresh the runner image",
+    "[Windows] style: reformat sources",
+    "internal(runtime): reorganize helpers",
+    "minor: tidy formatting",
+    "Bump dependencies",
+    "Update lockfile",
+    "依赖升级",
+  ])("keeps explicit chores filtered: %s", (bullet) => {
+    const notes = `- ${bullet}`;
+    expect(isEmptyChore(notes)).toBe(true);
+    const r = { ...release("claude", "2.0.0"), notes };
+    expect(selectRadarCandidate([r], "1.0.0")).toEqual({ skip: [r], candidate: null });
+  });
+
   test("version bump kind and empty-chore / valuable heuristics", () => {
     expect(versionBumpKind("1.2.3", "1.2.2")).toBe("patch");
     expect(versionBumpKind("1.3.0", "1.2.9")).toBe("minor");
