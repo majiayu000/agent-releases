@@ -11,7 +11,7 @@ const REGRESSION = /\bno longer\s+(?:jumps?|fail(?:s|ed|ing)?|crash(?:es|ed|ing)
 const CHORE_BULLET =
   /^(?:chore|deps?|bump|ci|build|internal|refactor|style|docs?(?:umentation)?)(?:\([^)]+\))?!?:|^(?:bump|update[sd]?)\s+(?:dependencies|dependency|deps|lockfile|ci)\b|依赖升级|内部重构|文档(?:更新|修正)/i;
 const FLUFF_BULLET =
-  /^(?:minor|small|various|misc(?:ellaneous)?)(?:\([^)]+\))?!?:|改进可靠性|小幅(?:优化|改进)|miscellaneous\b|maintenance\b/i;
+  /^(?:minor|small|various|misc(?:ellaneous)?)(?:(?:\([^)]+\))?!?:|\s+(?:bug\s+)?fix(?:es)?\b)|改进可靠性|小幅(?:优化|改进)|miscellaneous\b|maintenance\b/i;
 
 function featureProse(bullet: string): string {
   const withoutTag = bullet.replace(/^(?:\[[^\]]+\]\s*)+/, "");
