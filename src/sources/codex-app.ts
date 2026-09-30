@@ -32,6 +32,13 @@ export async function fetchCodexAppSince(
 
   // Entries before the cursor in document order are newer; walk oldest-first.
   const newer = all.slice(0, cursorIndex).reverse();
+  // Include the cursor (or its nearest older numbered entry) as the baseline.
+  // Slug dates can differ from build dates; do not infer builds from the slug.
+  let priorAppBuild = all.slice(cursorIndex).find(release => /^\d+\.\d+$/.test(release.displayVersion))?.displayVersion;
+  for (const release of newer) {
+    if (priorAppBuild) release.previousAppBuild = priorAppBuild;
+    if (/^\d+\.\d+$/.test(release.displayVersion)) priorAppBuild = release.displayVersion;
+  }
   console.log(
     `[codex_app] parsed ${all.length} app entries; ${newer.length} newer than ${afterVersion}`,
   );
