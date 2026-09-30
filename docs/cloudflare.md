@@ -62,7 +62,7 @@ bunx wrangler d1 execute DB --remote --command "SELECT product,version,json_extr
 
 `posted` 表示曾经发出，不代表帖子目前仍存在。打开 `https://x.com/i/status/ID` 或使用现有 `list X timeline` 工作流核对完整正文、版本及时间。不要仅凭最近一页没找到就认定未发送。
 
-核对期间先将 Worker 设为预览并等待正在运行的任务结束。确认已发后，在同一个 SQLite 事务或 D1 `batch` 中执行以下三条语句。两组 `?` 均绑定核对过的根帖 ID 和发送时间；先补齐成员，再推进游标并确认 tip，不能仅修改 pending 行。任何语句失败都必须回滚。
+核对期间先将 Worker 设为预览并等待正在运行的任务结束。确认已发后，在同一个 SQLite 事务或 D1 `batch` 中执行以下三条语句。第一、第三条语句的 `?` 均绑定核对过的根帖 ID 和发送时间，第二条的 `?` 绑定核对过的发布前游标；先补齐成员，再推进游标并确认 tip，不能仅修改 pending 行。游标缺失、已改变或更新未影响恰好一行时，最后一条语句触发现有 NOT NULL 约束，整个事务必须回滚并保留 pending。任何语句失败都必须回滚。
 
 ```sql
 INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day,posted_at)
@@ -70,8 +70,9 @@ SELECT p.product,j.value,'posted',json_extract(p.text,'$.text'),?,p.reserved_at,
 FROM publications p,json_each(p.text,'$.coveredVersions') j
 WHERE p.status='pending' AND j.value != p.version;
 UPDATE cursors SET version=(SELECT version FROM publications WHERE status='pending')
-WHERE product=(SELECT product FROM publications WHERE status='pending');
-UPDATE publications SET status='posted',text=json_extract(text,'$.text'),tweet_id=?,posted_at=?
+WHERE product=(SELECT product FROM publications WHERE status='pending') AND version=?;
+UPDATE publications SET status=CASE WHEN changes()=1 THEN 'posted' ELSE NULL END,
+text=json_extract(text,'$.text'),tweet_id=?,posted_at=?
 WHERE status='pending';
 ```
 
