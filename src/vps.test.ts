@@ -95,37 +95,6 @@ test("SQLite commits a reservation before mock X, completes atomically and rejec
   expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.1" });
 });
 
-test("Codex App month-boundary builds publish a bundle and persist only the tip slug", async () => {
-  connection.query("UPDATE cursors SET version='1.0.1' WHERE product='claude'").run();
-  connection.query("UPDATE cursors SET version='codex-2026-09-27-app' WHERE product='codex_app'").run();
-  const html = [
-    ["codex-2026-10-01-app", "26.1001"],
-    ["codex-2026-09-29-app", "26.929"],
-    ["codex-2026-09-28-app", "26.928"],
-    ["codex-2026-09-27-app", "26.927"],
-  ].map(([id, build]) => `<li id="${id}" data-codex-topics="codex-app"><h3>Codex app ${build}</h3><article><p>Added tiny tweak</p></article></li>`).join("");
-  const otherFetch = globalThis.fetch;
-  globalThis.fetch = (async (input, init) => String(input).includes("developers.openai.com")
-    ? new Response(html) : otherFetch(input, init)) as typeof fetch;
-  const tip = "codex-2026-10-01-app";
-  spyOn(twitter, "postTweet").mockImplementation(async (text, replyToId?) => {
-    expect(connection.query("SELECT product,version,status FROM publications").get()).toEqual({ product: "codex_app", version: tip, status: "pending" });
-    if (replyToId) expect(text).toBe(`官方：https://developers.openai.com/codex/changelog#${tip}`);
-    sent++;
-    return "123456";
-  });
-  await runPublisher(db, true);
-  expect(sent).toBe(0);
-  expect(connection.query("SELECT version FROM cursors WHERE product='codex_app'").get()).toEqual({ version: "codex-2026-09-27-app" });
-  expect(draft.draftChinesePost).toHaveBeenCalledWith(expect.objectContaining({ version: tip, displayVersion: "26.928→26.1001" }));
-  await runPublisher(db, false);
-  expect(sent).toBe(2);
-  expect(connection.query("SELECT version FROM cursors WHERE product='codex_app'").get()).toEqual({ version: tip });
-  expect(connection.query("SELECT version,status FROM publications").get()).toEqual({ version: tip, status: "posted" });
-  await runPublisher(db, false);
-  expect(sent).toBe(2);
-});
-
 test("unknown mock X outcome survives reopening SQLite and blocks later runs", async () => {
   failure = "x";
   await expect(runPublisher(db, false)).rejects.toThrow("X response lost");
@@ -177,4 +146,35 @@ test("publication refuses a missing database instead of creating an empty ledger
   expect(result.exitCode).not.toBe(0);
   expect(result.stderr.toString()).toContain("unable to open database file");
   expect(existsSync(join(dir, "missing.sqlite"))).toBe(false);
+});
+
+test("Codex App month-boundary builds publish a bundle and persist only the tip slug", async () => {
+  connection.query("UPDATE cursors SET version='1.0.1' WHERE product='claude'").run();
+  connection.query("UPDATE cursors SET version='codex-2026-09-27-app' WHERE product='codex_app'").run();
+  const html = [
+    ["codex-2026-10-01-app", "26.1001"],
+    ["codex-2026-09-29-app", "26.929"],
+    ["codex-2026-09-28-app", "26.928"],
+    ["codex-2026-09-27-app", "26.927"],
+  ].map(([id, build]) => `<li id="${id}" data-codex-topics="codex-app"><h3>Codex app ${build}</h3><article><p>Added tiny tweak</p></article></li>`).join("");
+  const otherFetch = globalThis.fetch;
+  globalThis.fetch = (async (input, init) => String(input).includes("developers.openai.com")
+    ? new Response(html) : otherFetch(input, init)) as typeof fetch;
+  const tip = "codex-2026-10-01-app";
+  spyOn(twitter, "postTweet").mockImplementation(async (text, replyToId?) => {
+    expect(connection.query("SELECT product,version,status FROM publications").get()).toEqual({ product: "codex_app", version: tip, status: "pending" });
+    if (replyToId) expect(text).toBe(`官方：https://developers.openai.com/codex/changelog#${tip}`);
+    sent++;
+    return "123456";
+  });
+  await runPublisher(db, true);
+  expect(sent).toBe(0);
+  expect(connection.query("SELECT version FROM cursors WHERE product='codex_app'").get()).toEqual({ version: "codex-2026-09-27-app" });
+  expect(draft.draftChinesePost).toHaveBeenCalledWith(expect.objectContaining({ version: tip, displayVersion: "26.928→26.1001" }));
+  await runPublisher(db, false);
+  expect(sent).toBe(2);
+  expect(connection.query("SELECT version FROM cursors WHERE product='codex_app'").get()).toEqual({ version: tip });
+  expect(connection.query("SELECT version,status FROM publications").get()).toEqual({ version: tip, status: "posted" });
+  await runPublisher(db, false);
+  expect(sent).toBe(2);
 });
