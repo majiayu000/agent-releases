@@ -374,6 +374,7 @@ describe("radar coalesce / de-noise", () => {
     "Style the projects sidebar with the new theme",
     "Minor latency win for long tool calls",
     "Internal hooks for third-party agents",
+    "Internal improvements to third-party agent hooks",
     "Bump the context window to 128k tokens",
     "Bump API from v1.0 to v2.0",
     "Bump context from 64.0k to 128.0k",
@@ -391,10 +392,14 @@ describe("radar coalesce / de-noise", () => {
     "build: switch the bundler",
     "build(deps): refresh tooling",
     "chore: tidy package metadata",
+    "Chore update dependencies",
+    "Refactor plugin loader internals",
     "ci: refresh the runner image",
     "Documentation updates",
     "Docs updates",
     "CI improvements",
+    "Internal improvements",
+    "Internal changes",
     "[Windows] style: reformat sources",
     "internal(runtime): reorganize helpers",
     "minor: tidy formatting",
@@ -406,14 +411,19 @@ describe("radar coalesce / de-noise", () => {
     "Various improvements",
     "Bump dependencies",
     "Bump actions/checkout from 4.1.0 to 4.1.1",
+    "Bump actions/checkout from 4 to 5",
+    "Bump lodash from 4.17.20 to 4.17.21",
+    "Update lodash from 4.17.20 to 4.17.21",
     "Update @types/bun from 1.0.0 to 1.1.0",
     "Update lockfile",
     "依赖升级",
   ])("keeps explicit chores filtered: %s", (bullet) => {
     const notes = `- ${bullet}`;
     expect(isEmptyChore(notes)).toBe(true);
-    const r = { ...release("claude", "2.0.0"), notes };
-    expect(selectRadarCandidate([r], "1.0.0")).toEqual({ skip: [r], candidate: null });
+    for (const version of ["1.1.0", "2.0.0"]) {
+      const r = { ...release("claude", version), notes };
+      expect(selectRadarCandidate([r], "1.0.0")).toEqual({ skip: [r], candidate: null });
+    }
   });
 
   test("filters fixes and metadata behind chore labels before picking features", () => {
