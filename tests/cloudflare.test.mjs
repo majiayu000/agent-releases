@@ -43,7 +43,9 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
         if (url.hostname === 'api.github.com') {
           if (failSource && url.pathname.includes('/openai/')) return new Response('unavailable', { status: 503 });
           const codex = url.pathname.includes('/openai/');
-          const versions = !codex && thinOlder ? ['1.1.0', '1.0.1', '1.0.0'] : !codex && patchBundle ? ['1.0.3', '1.0.2', '1.0.1', '1.0.0'] : ['1.0.1', '1.0.0'];
+          const versions = !codex && thinOlder ? ['1.1.0', '1.0.1', '1.0.0'] : !codex && patchBundle
+            ? Array.from({ length: (patchBundle === true ? 3 : patchBundle) + 1 }, (_, i) => `1.0.${i}`).reverse()
+            : ['1.0.1', '1.0.0'];
           const releases = versions.map(version => ({ tag_name: `${codex ? 'rust-v' : 'v'}${version}`, html_url: `https://github.com/test/releases/${version}`, body: !codex && thinOlder ? '- Added tiny tweak\n- Fixed a crash in terminal session reconnect' : '- Added support for custom commands and terminal sessions', draft: false, prerelease: false }));
           return Response.json(releases);
         }
@@ -299,14 +301,7 @@ test('D1 failed completion retains bundle members for manual reconciliation', as
   await db.prepare('DROP TRIGGER fail_completion').run();
   const pending = await db.prepare("SELECT text FROM publications WHERE status='pending'").first();
   assert.deepEqual(JSON.parse(pending.text).coveredVersions, ['1.0.1', '1.0.2', '1.0.3']);
-  await db.batch([
-    db.prepare(`INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day,posted_at)
-      SELECT p.product,j.value,'posted',json_extract(p.text,'$.text'),?,p.reserved_at,p.day,?
-      FROM publications p,json_each(p.text,'$.coveredVersions') j
-      WHERE p.status='pending' AND j.value != p.version`).bind('9001', new Date().toISOString()),
-    db.prepare("UPDATE cursors SET version=(SELECT version FROM publications WHERE status='pending') WHERE product=(SELECT product FROM publications WHERE status='pending')"),
-    db.prepare("UPDATE publications SET status='posted',text=json_extract(text,'$.text'),tweet_id=?,posted_at=? WHERE status='pending'").bind('9001', new Date().toISOString()),
-  ]);
+  await reconcile(db);
   await db.prepare("UPDATE cursors SET version='1.0.0' WHERE product='claude'").run();
   assert.equal((await run()).outcome, 'ok');
   assert.equal(calls.tweets, 8);
@@ -315,4 +310,70 @@ test('D1 failed completion retains bundle members for manual reconciliation', as
     { version: '1.0.2', status: 'posted', tweet_id: '9001' },
     { version: '1.0.3', status: 'posted', tweet_id: '9001' },
   ]);
+});
+
+// Execute the documented recovery SQL, including its cursor precondition.
+const recoverySql = readFileSync(new URL('../docs/cloudflare.md', import.meta.url), 'utf8')
+  .match(/```sql\n([\s\S]*?)\n```/)[1].split(';').map(sql => sql.trim()).filter(Boolean);
+const reconcile = db => db.batch(recoverySql.map((sql, i) =>
+  db.prepare(sql).bind(...(i === 1 ? ['1.0.0'] : ['9001', new Date().toISOString()]))));
+
+for (const cursor of ['missing', 'changed', 'ignored']) test(`D1 documented recovery rolls back a ${cursor} cursor`, async t => {
+  const { db, calls, run } = await setup(t, { patchBundle: true });
+  await db.prepare("CREATE TRIGGER fail_completion BEFORE UPDATE ON cursors BEGIN SELECT RAISE(ABORT, 'completion failed'); END").run();
+  assert.equal((await run()).outcome, 'exception');
+  assert.equal(calls.tweets, 2);
+  await db.prepare('DROP TRIGGER fail_completion').run();
+  if (cursor === 'missing') await db.prepare("DELETE FROM cursors WHERE product='claude'").run();
+  else if (cursor === 'changed') await db.prepare("UPDATE cursors SET version='9.0.0' WHERE product='claude'").run();
+  else await db.prepare("CREATE TRIGGER ignore_cursor BEFORE UPDATE ON cursors BEGIN SELECT RAISE(IGNORE); END").run();
+  await assert.rejects(reconcile(db));
+  assert.deepEqual((await db.prepare('SELECT version,status,tweet_id FROM publications').all()).results,
+    [{ version: '1.0.3', status: 'pending', tweet_id: null }]);
+  const saved = await db.prepare("SELECT version FROM cursors WHERE product='claude'").first();
+  assert.deepEqual(saved, cursor === 'missing' ? null : { version: cursor === 'changed' ? '9.0.0' : '1.0.0' });
+  assert.equal((await run()).outcome, 'exception');
+  assert.equal(calls.tweets, 2);
+});
+
+for (const size of [15, 16, 100]) test(`D1 completion supports a ${size}-release bundle`, async t => {
+  const { db, calls, run } = await setup(t, { patchBundle: size });
+  assert.equal((await run()).outcome, 'ok', `${size}-release completion after ${calls.tweets} mock X requests`);
+  const rows = (await db.prepare("SELECT version,status,tweet_id,text FROM publications WHERE product='claude'").all()).results;
+  assert.equal(rows.length, size);
+  assert.ok(rows.every(row => row.status === 'posted' && row.tweet_id === '9001' && row.text === rows[0].text));
+  assert.match(rows[0].text, /新增自定义命令支持/);
+  assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, `1.0.${size}`);
+  await db.prepare("UPDATE cursors SET version='1.0.0' WHERE product='claude'").run();
+  assert.equal((await run()).outcome, 'ok');
+  assert.equal(calls.tweets, 8);
+});
+
+test('export CLI imports every reconciled bundle member and prevents D1 rewind replay', async t => {
+  const { db, calls, run } = await setup(t, { patchBundle: true });
+  await db.prepare('DELETE FROM cursors').run();
+  const dir = mkdtempSync(join(tmpdir(), 'agent-release-bundle-import-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, '.state'));
+  for (const product of products) writeFileSync(join(dir, `.state/last_posted_${product}.txt`),
+    product === 'codex' ? 'rust-v1.0.1' : product === 'codex_app' ? 'codex-2026-09-11-app' : product === 'claude' ? '1.0.3' : '1.0.1');
+  const ts = new Date().toISOString();
+  const rows = [
+    { product: 'claude', version: '1.0.1', dryRun: false, tweetId: '111', text: 'earlier', ts },
+    { product: 'claude', version: '1.0.3', coveredVersions: ['1.0.1', '1.0.2', '1.0.3'], dryRun: false, text: "operator's bundle", ts },
+    { product: 'claude', version: '1.0.3', coveredVersions: ['1.0.1', '1.0.2', '1.0.3'], dryRun: false, tweetId: '222', text: "operator's bundle", ts },
+    { product: 'claude', version: '1.0.3', coveredVersions: ['1.0.1', '1.0.2', '1.0.3'], dryRun: true, tweetId: '333', text: 'preview', ts },
+  ];
+  writeFileSync(join(dir, '.state/posted.jsonl'), rows.map(row => JSON.stringify(row)).join('\n'));
+  const exported = spawnSync('bun', [fileURLToPath(new URL('../scripts/export-d1.ts', import.meta.url))], { cwd: dir, encoding: 'utf8' });
+  assert.equal(exported.status, 0, exported.stderr);
+  for (const sql of exported.stdout.trim().split('\n')) await db.prepare(sql).run();
+  const saved = (await db.prepare('SELECT version,status,tweet_id,text FROM publications ORDER BY version').all()).results;
+  assert.deepEqual(saved, ['1.0.1', '1.0.2', '1.0.3'].map(version =>
+    ({ version, status: 'posted', tweet_id: '222', text: "operator's bundle" })));
+  assert.equal((await db.prepare('SELECT count(DISTINCT tweet_id) AS n FROM publications WHERE day=?').bind(day()).first()).n, 1);
+  await db.prepare("UPDATE cursors SET version='1.0.0' WHERE product='claude'").run();
+  assert.equal((await run()).outcome, 'ok');
+  assert.equal(calls.tweets, 0);
+  assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.0.3');
 });

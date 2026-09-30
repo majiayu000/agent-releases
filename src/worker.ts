@@ -122,8 +122,11 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
     ];
     if (members.length) {
       statements.push(db.prepare(`INSERT INTO publications (product, version, status, text, tweet_id, reserved_at, day, posted_at)
-        VALUES ${members.map(() => "(CASE WHEN changes() = 1 THEN ? ELSE NULL END, ?, 'posted', ?, ?, ?, ?, ?)").join(", ")}`)
-        .bind(...members.flatMap(version => [plan.product, version, text!, tweetId, reservedAt.toISOString(), day, postedAt])));
+        SELECT CASE WHEN changes() = 1 THEN p.product ELSE NULL END, j.value, 'posted',
+          json_extract(p.text, '$.text'), ?, p.reserved_at, p.day, ?
+        FROM publications p, json_each(p.text, '$.coveredVersions') j
+        WHERE p.product = ? AND p.version = ? AND p.status = 'pending' AND j.value != p.version`)
+        .bind(tweetId, postedAt, plan.product, release.version));
     }
     // changes() checks the preceding write inside the same transaction. A missed
     // cursor/member write violates the existing NOT NULL constraint, rolling back

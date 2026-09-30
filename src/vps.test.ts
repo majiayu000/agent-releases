@@ -11,6 +11,10 @@ import { SqliteDatabase } from "./vps.ts";
 import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
 
 const schema = readFileSync(new URL("../migrations/0001_publications.sql", import.meta.url), "utf8");
+const recoverySql = readFileSync(new URL("../docs/cloudflare.md", import.meta.url), "utf8")
+  .match(/```sql\n([\s\S]*?)\n```/)![1]!.split(";").map(sql => sql.trim()).filter(Boolean);
+const reconcile = () => db.batch(recoverySql.map((sql, i) =>
+  db.prepare(sql).bind(...(i === 1 ? ["1.0.0"] : ["123456", new Date().toISOString()]))));
 const release: Release = {
   product: "claude", version: "1.0.1", displayVersion: "1.0.1", title: "Claude 1.0.1",
   notes: "- Added custom commands", url: "https://example.com/1.0.1",
@@ -236,14 +240,7 @@ test("SQLite failed completion can reconcile durable bundle members after reopen
   connection.exec("DROP TRIGGER fail_completion");
   const row = connection.query("SELECT text FROM publications WHERE status='pending'").get() as { text: string };
   expect(JSON.parse(row.text).coveredVersions).toEqual(["1.0.1", "1.0.2", "1.0.3"]);
-  await db.batch([
-    db.prepare(`INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day,posted_at)
-      SELECT p.product,j.value,'posted',json_extract(p.text,'$.text'),?,p.reserved_at,p.day,?
-      FROM publications p,json_each(p.text,'$.coveredVersions') j
-      WHERE p.status='pending' AND j.value != p.version`).bind("123456", new Date().toISOString()),
-    db.prepare("UPDATE cursors SET version=(SELECT version FROM publications WHERE status='pending') WHERE product=(SELECT product FROM publications WHERE status='pending')"),
-    db.prepare("UPDATE publications SET status='posted',text=json_extract(text,'$.text'),tweet_id=?,posted_at=? WHERE status='pending'").bind("123456", new Date().toISOString()),
-  ]);
+  await reconcile();
   connection.query("UPDATE cursors SET version='1.0.0' WHERE product='claude'").run();
   claudeVersions = ["1.0.2", "1.0.1", "1.0.0"];
   await runPublisher(db, false);
@@ -254,6 +251,25 @@ test("SQLite failed completion can reconcile durable bundle members after reopen
     { version: "1.0.3", status: "posted", tweet_id: "123456" },
   ]);
   expect(connection.query("SELECT count(DISTINCT tweet_id) AS n FROM publications").get()).toEqual({ n: 1 });
+});
+
+for (const cursor of ["missing", "changed", "ignored"]) test(`SQLite documented recovery rolls back a ${cursor} cursor`, async () => {
+  claudeVersions = ["1.0.3", "1.0.2", "1.0.1", "1.0.0"];
+  connection.exec("CREATE TRIGGER fail_completion BEFORE UPDATE ON cursors BEGIN SELECT RAISE(ABORT, 'completion failed'); END");
+  await expect(runPublisher(db, false)).rejects.toThrow("completion failed");
+  expect(sent).toBe(2);
+  connection.exec("DROP TRIGGER fail_completion");
+  if (cursor === "missing") connection.exec("DELETE FROM cursors WHERE product='claude'");
+  else if (cursor === "changed") connection.exec("UPDATE cursors SET version='9.0.0' WHERE product='claude'");
+  else connection.exec("CREATE TRIGGER ignore_cursor BEFORE UPDATE ON cursors BEGIN SELECT RAISE(IGNORE); END");
+  await expect(reconcile()).rejects.toThrow();
+  expect(connection.query("SELECT version,status,tweet_id FROM publications").all()).toEqual([
+    { version: "1.0.3", status: "pending", tweet_id: null },
+  ]);
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get())
+    .toEqual(cursor === "missing" ? null : { version: cursor === "changed" ? "9.0.0" : "1.0.0" });
+  await expect(runPublisher(db, false)).rejects.toThrow("Reconcile pending");
+  expect(sent).toBe(2);
 });
 
 test("Codex App month-boundary builds publish a bundle and persist only the tip slug", async () => {
