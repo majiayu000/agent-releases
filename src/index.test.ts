@@ -374,6 +374,7 @@ describe("radar coalesce / de-noise", () => {
     "Style the projects sidebar with the new theme",
     "Minor latency win for long tool calls",
     "Internal hooks for third-party agents",
+    "Bump the context window to 128k tokens",
   ])("keeps feature prose postable: %s", (bullet) => {
     const notes = `- ${bullet}`;
     expect(isNotable(notes)).toBe(true);
@@ -395,7 +396,12 @@ describe("radar coalesce / de-noise", () => {
     "Small bug fixes",
     "Various bug fixes",
     "Minor fixes",
+    "Minor improvements",
+    "Small improvements",
+    "Various improvements",
     "Bump dependencies",
+    "Bump actions/checkout from 4.1.0 to 4.1.1",
+    "Update @types/bun from 1.0.0 to 1.1.0",
     "Update lockfile",
     "依赖升级",
   ])("keeps explicit chores filtered: %s", (bullet) => {

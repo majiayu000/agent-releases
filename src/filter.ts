@@ -9,9 +9,9 @@ const META_BULLET = /^(?:full changelog|changelog:|#\d+\b|\[?#\d+\]?\()/i;
 const REGRESSION = /\bno longer\s+(?:jumps?|fail(?:s|ed|ing)?|crash(?:es|ed|ing)?|hangs?|freez(?:e|es|ed|ing))\b|不再意外跳动/i;
 /** Dependency / CI / internal chores that should not become radar posts. */
 const CHORE_BULLET =
-  /^(?:chore|deps?|bump|ci|build|internal|refactor|style|docs?(?:umentation)?)(?:\([^)]+\))?!?:|^(?:bump|update[sd]?)\s+(?:dependencies|dependency|deps|lockfile|ci)\b|依赖升级|内部重构|文档(?:更新|修正)/i;
+  /^(?:chore|deps?|bump|ci|build|internal|refactor|style|docs?(?:umentation)?)(?:\([^)]+\))?!?:|^(?:bump|update[sd]?)\s+(?:(?:dependencies|dependency|deps|lockfile|ci)\b|\S+\s+from\s+v?\d+\.\S+\s+to\s+v?\d+\.\S+)|依赖升级|内部重构|文档(?:更新|修正)/i;
 const FLUFF_BULLET =
-  /^(?:minor|small|various|misc(?:ellaneous)?)(?:(?:\([^)]+\))?!?:|\s+(?:bug\s+)?fix(?:es)?\b)|改进可靠性|小幅(?:优化|改进)|miscellaneous\b|maintenance\b/i;
+  /^(?:minor|small|various|misc(?:ellaneous)?)(?:(?:\([^)]+\))?!?:|\s+(?:bug\s+)?fix(?:es)?\b|\s+improvements?[.!]?$)|改进可靠性|小幅(?:优化|改进)|miscellaneous\b|maintenance\b/i;
 
 function featureProse(bullet: string): string {
   const withoutTag = bullet.replace(/^(?:\[[^\]]+\]\s*)+/, "");
