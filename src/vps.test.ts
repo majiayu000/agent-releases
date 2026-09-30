@@ -21,7 +21,7 @@ let connection: Database;
 let db: SqliteDatabase;
 let restores: (() => void)[];
 let sent: number;
-let failure: "none" | "x";
+let failure: "none" | "x" | "reply" | "reply-id";
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "agent-release-sqlite-"));
@@ -58,10 +58,13 @@ beforeEach(() => {
           expect(text).not.toMatch(/https?:\/\//i);
         } else {
           expect(text).toBe(`官方：${release.url}`);
+          expect(observer.query("SELECT status,tweet_id FROM publications").get()).toEqual({ status: "pending", tweet_id: replyToId });
         }
       } finally { observer.close(); }
       sent++;
       if (failure === "x") throw new Error("X response lost");
+      if (replyToId && failure === "reply") throw new Error("reply response lost");
+      if (replyToId && failure === "reply-id") return "invalid";
       return replyToId ? "123457" : "123456";
     }),
   ];
@@ -105,11 +108,31 @@ test("unknown mock X outcome survives reopening SQLite and blocks later runs", a
   expect(sent).toBe(1);
 });
 
+for (const replyFailure of ["reply", "reply-id"] as const) test(`SQLite preserves the root on ${replyFailure} failure and blocks replay`, async () => {
+  failure = replyFailure;
+  await expect(runPublisher(db, false)).rejects.toThrow("Root tweet 123456");
+  const reopened = new Database(join(dir, "state.sqlite"), { strict: true });
+  try {
+    expect(reopened.query("SELECT status,tweet_id,posted_at FROM publications").get()).toEqual({ status: "pending", tweet_id: "123456", posted_at: null });
+    await expect(runPublisher(new SqliteDatabase(reopened), false)).rejects.toThrow("123456");
+  } finally { reopened.close(); }
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.0" });
+  expect(sent).toBe(2);
+});
+
+for (const action of ["ABORT, 'root checkpoint failed'", "IGNORE"]) test(`SQLite root checkpoint ${action} prevents sending the reply`, async () => {
+  connection.exec(`CREATE TRIGGER fail_root BEFORE UPDATE OF tweet_id ON publications WHEN NEW.status='pending' BEGIN SELECT RAISE(${action}); END`);
+  await expect(runPublisher(db, false)).rejects.toThrow("Root tweet 123456");
+  expect(sent).toBe(1);
+  expect(connection.query("SELECT status,tweet_id FROM publications").get()).toEqual({ status: "pending", tweet_id: null });
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.0" });
+});
+
 test("completion failure rolls back posted status and keeps pending after mock X success", async () => {
   connection.exec("CREATE TRIGGER fail_completion BEFORE UPDATE ON cursors BEGIN SELECT RAISE(ABORT, 'completion failed'); END");
   await expect(runPublisher(db, false)).rejects.toThrow("completion failed");
   expect(sent).toBe(2);
-  expect(connection.query("SELECT status,tweet_id FROM publications").get()).toEqual({ status: "pending", tweet_id: null });
+  expect(connection.query("SELECT status,tweet_id FROM publications").get()).toEqual({ status: "pending", tweet_id: "123456" });
   expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.0" });
 });
 

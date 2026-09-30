@@ -9,7 +9,7 @@
 - `cursors` 记录各产品处理进度；纯修复也可推进进度，因此游标不是发布凭证。
 - `publications` 以 `(product, version)` 为主键，保存正文、时间、北京时间日期和 tweet ID。
 - 发布前原子插入 `pending`。数据库唯一索引只允许整个账号存在一条 pending，插入同时检查当天最多 12 条及读取时的游标，防止并发运行重复占用。
-- X 返回 ID 后，在 D1 事务里同时标记 `posted` 和推进游标。超时、HTTP 错误、回写失败均抛错；pending 保留，后续任务停发。
+- X 返回有效根帖 ID 后立即写入 pending 的 `tweet_id`，再发送官方链接回复；回复返回有效 ID 后，在 D1 事务里同时标记 `posted` 和推进游标。超时、HTTP 错误、回写失败均抛错；pending 和已知根帖 ID 保留，后续任务停发。
 - 先完成全部来源读取和草稿生成再写数据库。每次每产品最多发一条。没有初始化游标时只记录最新版本，不补发历史。
 - 预览不写表、不调用 X。每日限额同样影响预览选题。
 
@@ -62,6 +62,6 @@ bunx wrangler d1 execute DB --remote --command "SELECT product,version,text,rese
 
 `posted` 表示曾经发出，不代表帖子目前仍存在。打开 `https://x.com/i/status/ID` 或使用现有 `list X timeline` 工作流核对完整正文、版本及时间。不要仅凭最近一页没找到就认定未发送。
 
-核对期间先将 Worker 设为预览并等待正在运行的任务结束。确认已发：将该 pending 行的 `status` 改为 `posted`，填写真实 `tweet_id` 和 `posted_at`；下轮会依据账本跳过该版本并推进游标。确认未发：删除对应 pending 行，保持游标不变，让新运行重新生成。无法确认时保留 pending。人工发帖也必须记录到同一张表后再恢复自动发布。
+核对期间先将 Worker 设为预览并等待正在运行的任务结束。`tweet_id` 非空表示根帖已发，不能删除 pending 或重发根帖；确认官方回复未发时，只向这个 ID 补发回复，结果未知则继续保留 pending。根帖和官方回复都确认后，将该 pending 行的 `status` 改为 `posted`，填写真实根帖 `tweet_id` 和 `posted_at`；下轮会依据账本跳过该版本并推进游标。只有确认根帖未发才可删除对应 pending 行，保持游标不变，让新运行重新生成。空 `tweet_id` 也可能是根帖 ID 回写失败，应结合错误中的 ID 和时间线核对。无法确认时保留 pending。人工发帖也必须记录到同一张表后再恢复自动发布。
 
 D1 事务无法与 X 请求组成一个原子事务；该方案优先避免重复，结果未知时仍需人工核对。[D1 事务说明](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch)

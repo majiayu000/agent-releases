@@ -43,11 +43,11 @@ const sources = [
   { product: "grok_build", latest: fetchLatestGrokBuild, since: fetchGrokBuildSince },
 ] as const;
 const dayOf = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(date);
-const pending = (db: PublicationDatabase) => db.prepare("SELECT product, version FROM publications WHERE status = 'pending'").first<{ product: string; version: string }>();
+const pending = (db: PublicationDatabase) => db.prepare("SELECT product, version, tweet_id FROM publications WHERE status = 'pending'").first<{ product: string; version: string; tweet_id: string | null }>();
 
 export async function runPublisher(db: PublicationDatabase, preview: boolean): Promise<void> {
   const unresolved = await pending(db);
-  if (unresolved) throw new Error(`Reconcile pending X outcome before continuing: ${unresolved.product} ${unresolved.version}`);
+  if (unresolved) throw new Error(`Reconcile pending X outcome before continuing: ${unresolved.product} ${unresolved.version}${unresolved.tweet_id ? `; root tweet ${unresolved.tweet_id} was posted` : ""}`);
   if (!preview) assertXCredentials();
 
   // Finish all source reads and drafts before modifying state or calling X.
@@ -110,8 +110,11 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
     if (dayOf(new Date()) !== day) throw new Error("Daily boundary crossed after reservation; reconcile before retry");
     // Never retry automatically. Any exception, including lost DB acknowledgement,
     // leaves either a durable pending record or an already completed record.
-    const tweetId = await postRootThenOfficialReply(text!, release.url, postTweet);
-    if (!/^\d+$/.test(tweetId)) throw new Error("X returned no valid tweet ID; outcome unknown");
+    const tweetId = await postRootThenOfficialReply(text!, release.url, postTweet, async rootId => {
+      const saved = await db.prepare("UPDATE publications SET tweet_id = ? WHERE product = ? AND version = ? AND status = 'pending' AND tweet_id IS NULL")
+        .bind(rootId, plan.product, release.version).run();
+      if (saved.meta.changes !== 1) throw new Error("Root tweet ID did not persist; reply was not sent");
+    });
     const completion = await db.batch([
       db.prepare("UPDATE publications SET status = 'posted', tweet_id = ?, posted_at = ? WHERE product = ? AND version = ? AND status = 'pending'")
         .bind(tweetId, new Date().toISOString(), plan.product, release.version),

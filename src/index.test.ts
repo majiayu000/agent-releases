@@ -46,6 +46,30 @@ afterEach(() => {
 });
 
 describe("publication recovery", () => {
+  for (const replyFailure of ["throw", "invalid id"] as const) test(`known root survives ${replyFailure} from the official reply`, async () => {
+    const plan = await prepare(true, "live", [source()], draft, now);
+    let calls = 0;
+    await expect(publish(plan, async (_text, replyToId) => {
+      calls++;
+      if (!replyToId) return "123";
+      const reservation = pendingPosts()[0]!;
+      expect(reservation.tweetId).toBe("123");
+      expect(hasPostedLive("claude", "2.0.0")).toBe(false);
+      if (replyFailure === "throw") throw new Error("reply response lost");
+      return "invalid";
+    }, () => now)).rejects.toThrow("Root tweet 123");
+    expect(pendingPosts()[0]).toMatchObject({ tweetId: "123", replyPending: true, runId: "live", text: plan.posts[0]!.text });
+    expect(readState("claude")).toBe("1.0.0");
+    expect(hasPostedLive("claude", "2.0.0")).toBe(false);
+    const exported = Bun.spawnSync([process.execPath, join(root, "scripts/export-d1.ts")]);
+    expect(exported.exitCode).not.toBe(0);
+    expect(exported.stdout.toString()).toBe("");
+    expect(exported.stderr.toString()).toContain("Reconcile pending");
+    await expect(prepare(true, "retry", [source()], draft, now)).rejects.toThrow("Unresolved");
+    await expect(publish(plan, async () => { calls++; return "456"; }, () => now)).rejects.toThrow("Root tweet 123");
+    expect(calls).toBe(2);
+  });
+
   test("preview leaves cursor and ledger untouched; live can still publish", async () => {
     await prepare(false, "preview", [source()], draft, now);
     expect(readState("claude")).toBe("1.0.0");
