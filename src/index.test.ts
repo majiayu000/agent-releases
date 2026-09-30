@@ -207,6 +207,56 @@ describe("publication recovery", () => {
     expect(() => readState("claude")).toThrow("Empty state");
   });
 
+  test.each(["1.0.2", { version: "1.0.2" }, null, 12, true, [""], ["1.0.2", 12], [null]]
+    .map(coveredVersions => ({ coveredVersions })))(
+    "malformed coveredVersions %j fails before publication effects", async ({ coveredVersions }) => {
+      const ledger = JSON.stringify({ ts: now.toISOString(), product: "claude", version: "1.0.3",
+        dryRun: false, tweetId: "123", coveredVersions }) + "\n";
+      writeFileSync(".state/posted.jsonl", ledger);
+      const error = "Invalid posted.jsonl entry: refusing to publish";
+      expect(readLedger).toThrow(error);
+      expect(() => hasPostedLive("claude", "1.0.2")).toThrow(error);
+      let calls = 0;
+      const uncalledSource: Source = { product: "claude",
+        fetchLatest: async () => { calls++; return release(); },
+        fetchSince: async () => { calls++; return [release()]; } };
+      await expect(prepare(true, "invalid-bundle", [uncalledSource], async () => {
+        calls++; return "must not draft";
+      }, now)).rejects.toThrow(error);
+      await expect(publish({ runId: "invalid-bundle", day: "2026-09-10",
+        posts: [{ release: release(), text: "must not send" }] }, async () => {
+        calls++; return "456";
+      }, () => now)).rejects.toThrow(error);
+      expect(calls).toBe(0);
+      expect(readState("claude")).toBe("1.0.0");
+      expect(readFileSync(".state/posted.jsonl", "utf8")).toBe(ledger);
+    },
+  );
+
+  test.each(["1.0.2", { version: "1.0.2" }])("export CLI rejects malformed coveredVersions %j without SQL", coveredVersions => {
+    const ledger = JSON.stringify({ ts: now.toISOString(), product: "claude", version: "1.0.3",
+      dryRun: false, tweetId: "123", coveredVersions }) + "\n";
+    writeFileSync(".state/posted.jsonl", ledger);
+    const exported = Bun.spawnSync(["bun", join(root, "scripts/export-d1.ts")], { cwd: dir });
+    expect(exported.exitCode).toBe(1);
+    expect(exported.stdout.toString()).toBe("");
+    expect(exported.stderr.toString()).toContain("Invalid posted.jsonl entry: refusing to publish");
+    expect(readState("claude")).toBe("1.0.0");
+    expect(readFileSync(".state/posted.jsonl", "utf8")).toBe(ledger);
+  });
+
+  test("coveredVersions accepts absent and array values without changing bundle identities", () => {
+    const entries = [undefined, [], ["1.0.1", "1.0.2", "1.0.3"]].map(coveredVersions => ({
+      ts: now.toISOString(), product: "claude" as const, version: "1.0.3", dryRun: false,
+      tweetId: "123", coveredVersions,
+    }));
+    appendLedger(...entries);
+    expect(readLedger()).toEqual(entries);
+    expect(hasPostedLive("claude", "1.0.2")).toBe(true);
+    expect(hasPostedLive("claude", "1.0.3")).toBe(true);
+    expect(hasPostedLive("claude", "1.0")).toBe(false);
+  });
+
   test("live CLI modes cannot bypass D1 even from a fresh Actions attempt", () => {
     for (const mode of ["prepare", "publish"] as const) {
       const result = Bun.spawnSync(["bun", join(root, "src/index.ts"), mode], {
