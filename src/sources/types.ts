@@ -6,6 +6,8 @@ export type Release = {
   version: string;
   /** Human version shown in tweet */
   displayVersion: string;
+  /** Prior numbered Codex App build from the same feed; comparison only. */
+  previousAppBuild?: string;
   title: string;
   notes: string;
   url: string;

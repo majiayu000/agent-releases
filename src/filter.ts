@@ -109,7 +109,8 @@ export function selectRadarCandidate(releases: Release[], previousVersion: strin
   const skip: Release[] = [];
   const patchBuffer: Release[] = [];
   let prior = previousVersion;
-  let priorAppBuild = previousVersion && /^\d+\.\d+$/.test(previousVersion) ? previousVersion : null;
+  let priorAppBuild = releases[0]?.previousAppBuild ??
+    (previousVersion && /^\d+\.\d+$/.test(previousVersion) ? previousVersion : null);
   let candidate: Release | null = null;
 
   const absorbPatches = () => {
@@ -121,7 +122,7 @@ export function selectRadarCandidate(releases: Release[], previousVersion: strin
     const notable = isNotable(release.notes);
     const appBuild = release.product === "codex_app" && /^\d+\.\d+$/.test(release.displayVersion)
       ? release.displayVersion : null;
-    // App cursors are date slugs, not builds. With no comparable build, apply
+    // App cursors are date slugs; the feed supplies their prior build. With none, apply
     // the two-part build patch policy instead of inferring a date-based bump.
     const bump = appBuild
       ? priorAppBuild ? versionBumpKind(appBuild, priorAppBuild) : "patch"
