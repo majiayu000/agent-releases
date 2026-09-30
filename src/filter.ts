@@ -110,6 +110,8 @@ export function selectRadarCandidate(releases: Release[], previousVersion: strin
   const skip: Release[] = [];
   const patchBuffer: Release[] = [];
   let prior = previousVersion;
+  let priorAppBuild = releases[0]?.previousAppBuild ??
+    (previousVersion && /^\d+\.\d+$/.test(previousVersion) ? previousVersion : null);
   let candidate: Release | null = null;
 
   const absorbPatches = () => {
@@ -125,20 +127,27 @@ export function selectRadarCandidate(releases: Release[], previousVersion: strin
       absorbPatches();
       skip.push(release);
       prior = release.version;
+      if (release.product === "codex_app" && /^\d+\.\d+$/.test(release.displayVersion)) priorAppBuild = release.displayVersion;
       continue;
     }
     const notable = isNotable(release.notes);
+    const appBuild = release.product === "codex_app" && /^\d+\.\d+$/.test(release.displayVersion)
+      ? release.displayVersion : null;
+    // App cursors are date slugs; the feed supplies their prior build. With none, apply
+    // the two-part build patch policy instead of inferring a date-based bump.
+    const bump = appBuild
+      ? priorAppBuild ? versionBumpKind(appBuild, priorAppBuild) : "patch"
+      : versionBumpKind(release.version, prior);
+    if (appBuild) priorAppBuild = appBuild;
+    prior = release.version;
     if (!notable || isEmptyChore(release.notes)) {
       absorbPatches();
       skip.push(release);
-      prior = release.version;
       continue;
     }
 
-    const bump = versionBumpKind(release.version, prior);
-    prior = release.version;
-
-    if (bump === "patch") {
+    // Distinct same-day App ids (or equal builds) are not major/minor wins.
+    if (bump === "patch" || (release.product === "codex_app" && bump === "unknown")) {
       patchBuffer.push(release);
       continue;
     }
