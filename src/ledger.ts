@@ -12,6 +12,8 @@ export type LedgerEntry = {
   ts: string;
   product: Product;
   version: string;
+  /** Bundle identities retained when an operator confirms the reserved post. */
+  coveredVersions?: string[];
   tweetId?: string;
   issueUrl?: string;
   dryRun: boolean;
@@ -35,6 +37,8 @@ export function readLedger(): LedgerEntry[] {
   for (const entry of out) {
     if (!entry || !["claude", "codex", "codex_app", "grok_build"].includes(entry.product) ||
         typeof entry.version !== "string" || !entry.version ||
+        (entry.coveredVersions !== undefined && (!Array.isArray(entry.coveredVersions) ||
+          entry.coveredVersions.some(version => typeof version !== "string" || !version))) ||
         typeof entry.dryRun !== "boolean" || typeof entry.ts !== "string" || !Number.isFinite(Date.parse(entry.ts)) ||
         (entry.tweetId !== undefined && (typeof entry.tweetId !== "string" || !/^\d+$/.test(entry.tweetId)))) {
       throw new Error("Invalid posted.jsonl entry: refusing to publish");
@@ -56,10 +60,14 @@ export function postingDay(date: Date): string {
 }
 
 export function dailyPostCount(now: Date): number {
-  const keys = new Set<string>();
+  const latest = new Map<string, LedgerEntry>();
   for (const entry of readLedger()) {
-    if (!entry.dryRun && postingDay(new Date(entry.ts)) === postingDay(now)) {
-      keys.add(`${entry.product}:${entry.version}`);
+    if (!entry.dryRun) latest.set(`${entry.product}:${entry.version}`, entry);
+  }
+  const keys = new Set<string>();
+  for (const entry of latest.values()) {
+    if (postingDay(new Date(entry.ts)) === postingDay(now)) {
+      keys.add(`${entry.product}:${entry.tweetId ? `tweet:${entry.tweetId}` : `pending:${entry.version}`}`);
     }
   }
   return keys.size;
@@ -70,13 +78,13 @@ export function hasPostedLive(product: Product, version: string): boolean {
   return readLedger().some(
     (e) =>
       e.product === product &&
-      e.version === version &&
+      (e.version === version || e.coveredVersions?.includes(version)) &&
       Boolean(e.tweetId) &&
       e.dryRun === false,
   );
 }
 
-export function appendLedger(entry: LedgerEntry): void {
+export function appendLedger(...entries: LedgerEntry[]): void {
   mkdirSync(dirname(LEDGER_PATH), { recursive: true });
-  appendFileSync(LEDGER_PATH, JSON.stringify(entry) + "\n", "utf8");
+  appendFileSync(LEDGER_PATH, entries.map(entry => JSON.stringify(entry) + "\n").join(""), "utf8");
 }

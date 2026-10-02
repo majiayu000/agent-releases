@@ -52,7 +52,7 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
 
   // Finish all source reads and drafts before modifying state or calling X.
   const plans: { product: Product; previous: string | null; cursor: string; release?: Release; text?: string }[] = [];
-  const used = await db.prepare("SELECT count(*) AS n FROM publications WHERE day = ?").bind(dayOf(new Date())).first<number>("n");
+  const used = await db.prepare("SELECT count(DISTINCT tweet_id) + count(CASE WHEN status = 'pending' THEN 1 END) AS n FROM publications WHERE day = ?").bind(dayOf(new Date())).first<number>("n");
   let remaining = Math.max(0, DAILY_PUBLICATION_LIMIT - (used ?? 0));
   for (const source of sources) {
     const previous = await db.prepare("SELECT version FROM cursors WHERE product = ?").bind(source.product).first<string>("version");
@@ -63,14 +63,14 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
       continue;
     }
     let cursor = previous;
-    const fresh: Release[] = [];
-    for (const release of await source.since(previous)) {
+    const releases = await source.since(previous);
+    const posted = new Set<string>();
+    for (const release of releases) {
       const known = await db.prepare("SELECT status FROM publications WHERE product = ? AND version = ?").bind(source.product, release.version).first<string>("status");
       if (known === "pending") throw new Error(`Pending publication: ${source.product} ${release.version}`);
-      if (known === "posted") { cursor = release.version; continue; }
-      fresh.push(release);
+      if (known === "posted") posted.add(release.version);
     }
-    const { skip, candidate } = selectRadarCandidate(fresh, cursor);
+    const { skip, candidate } = selectRadarCandidate(releases, previous, posted);
     for (const release of skip) cursor = release.version;
     if (candidate && remaining > 0) {
       plans.push({ product: source.product, previous, cursor, release: candidate, text: await draftChinesePost(candidate) });
@@ -98,10 +98,11 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
     const reservation = await db.prepare(`INSERT INTO publications (product, version, status, text, reserved_at, day)
       SELECT ?, ?, 'pending', ?, ?, ?
       WHERE NOT EXISTS (SELECT 1 FROM publications WHERE status = 'pending')
-        AND (SELECT count(*) FROM publications WHERE day = ?) < ${DAILY_PUBLICATION_LIMIT}
+        AND (SELECT count(DISTINCT tweet_id) + count(CASE WHEN status = 'pending' THEN 1 END) FROM publications WHERE day = ?) < ${DAILY_PUBLICATION_LIMIT}
         AND EXISTS (SELECT 1 FROM cursors WHERE product = ? AND version = ?)
       ON CONFLICT (product, version) DO NOTHING`)
-      .bind(plan.product, release.version, text!, reservedAt.toISOString(), day, day, plan.product, plan.previous).run();
+      .bind(plan.product, release.version, JSON.stringify({ text, coveredVersions: release.coveredVersions ?? [release.version] }),
+        reservedAt.toISOString(), day, day, plan.product, plan.previous).run();
     if (reservation.meta.changes !== 1) {
       if (await pending(db)) throw new Error("Concurrent pending publication; reconcile before retry");
       console.log(`[deferred] ${plan.product} ${release.version}: already claimed, changed cursor or daily limit`);
@@ -112,14 +113,30 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
     // leaves either a durable pending record or an already completed record.
     const tweetId = await postRootThenOfficialReply(text!, release.url, postTweet);
     if (!/^\d+$/.test(tweetId)) throw new Error("X returned no valid tweet ID; outcome unknown");
-    const completion = await db.batch([
-      db.prepare("UPDATE publications SET status = 'posted', tweet_id = ?, posted_at = ? WHERE product = ? AND version = ? AND status = 'pending'")
-        .bind(tweetId, new Date().toISOString(), plan.product, release.version),
+    const postedAt = new Date().toISOString();
+    const members = (release.coveredVersions ?? []).filter(version => version !== release.version);
+    const statements = [
       db.prepare(`UPDATE cursors SET version = ? WHERE product = ? AND version = ?
-        AND EXISTS (SELECT 1 FROM publications WHERE product = ? AND version = ? AND status = 'posted' AND tweet_id = ?)`)
-        .bind(release.version, plan.product, plan.previous, plan.product, release.version, tweetId),
-    ]);
-    if (completion[0]?.meta.changes !== 1) {
+        AND EXISTS (SELECT 1 FROM publications WHERE product = ? AND version = ? AND status = 'pending')`)
+        .bind(release.version, plan.product, plan.previous, plan.product, release.version),
+    ];
+    if (members.length) {
+      statements.push(db.prepare(`INSERT INTO publications (product, version, status, text, tweet_id, reserved_at, day, posted_at)
+        SELECT CASE WHEN changes() = 1 THEN p.product ELSE NULL END, j.value, 'posted',
+          json_extract(p.text, '$.text'), ?, p.reserved_at, p.day, ?
+        FROM publications p, json_each(p.text, '$.coveredVersions') j
+        WHERE p.product = ? AND p.version = ? AND p.status = 'pending' AND j.value != p.version`)
+        .bind(tweetId, postedAt, plan.product, release.version));
+    }
+    // changes() checks the preceding write inside the same transaction. A missed
+    // cursor/member write violates the existing NOT NULL constraint, rolling back
+    // the entire completion and leaving the durable pending intent for reconciliation.
+    statements.push(db.prepare(`UPDATE publications SET status = CASE WHEN changes() = ? THEN 'posted' ELSE NULL END,
+      text = ?, tweet_id = ?, posted_at = ? WHERE product = ? AND version = ? AND status = 'pending'`)
+      .bind(members.length || 1, text!, tweetId, postedAt, plan.product, release.version));
+    const completion = await db.batch(statements);
+    const expected = members.length ? [1, members.length, 1] : [1, 1];
+    if (completion.length !== expected.length || completion.some((result, i) => result.meta.changes !== expected[i])) {
       throw new Error("Publication completion did not persist; reconcile pending X outcome");
     }
     console.log(`[posted] ${plan.product} ${release.version}: ${tweetId}`);

@@ -16,7 +16,11 @@ for (const product of ["claude", "codex", "codex_app", "grok_build"] as const) {
 }
 // Retain one confirmed success per product/version, including deleted posts.
 const posted = new Map<string, ReturnType<typeof readLedger>[number]>();
-for (const entry of readLedger()) if (!entry.dryRun && entry.tweetId) posted.set(`${entry.product}:${entry.version}`, entry);
+for (const entry of readLedger()) if (!entry.dryRun && entry.tweetId) {
+  for (const version of [entry.version, ...(entry.coveredVersions ?? [])]) {
+    posted.set(`${entry.product}:${version}`, { ...entry, version });
+  }
+}
 for (const entry of posted.values()) {
   const values = [entry.product, entry.version, "posted", entry.text ?? "", entry.tweetId!, entry.ts, postingDay(new Date(entry.ts)), entry.ts];
   statements.push(`INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day,posted_at) VALUES (${values.map(quote).join(",")});`);
