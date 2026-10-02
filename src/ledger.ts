@@ -15,9 +15,11 @@ export type LedgerEntry = {
   /** Bundle identities retained when an operator confirms the reserved post. */
   coveredVersions?: string[];
   tweetId?: string;
+  /** A known root ID is still pending until its official reply is confirmed. */
+  replyPending?: boolean;
   issueUrl?: string;
   dryRun: boolean;
-  /** Durable reservation: no tweetId means the outcome needs reconciliation. */
+  /** Durable reservation: missing tweetId or replyPending needs reconciliation. */
   runId?: string;
   text?: string;
 };
@@ -40,7 +42,8 @@ export function readLedger(): LedgerEntry[] {
         (entry.coveredVersions !== undefined && (!Array.isArray(entry.coveredVersions) ||
           entry.coveredVersions.some(version => typeof version !== "string" || !version))) ||
         typeof entry.dryRun !== "boolean" || typeof entry.ts !== "string" || !Number.isFinite(Date.parse(entry.ts)) ||
-        (entry.tweetId !== undefined && (typeof entry.tweetId !== "string" || !/^\d+$/.test(entry.tweetId)))) {
+        (entry.tweetId !== undefined && (typeof entry.tweetId !== "string" || !/^\d+$/.test(entry.tweetId))) ||
+        (entry.replyPending !== undefined && typeof entry.replyPending !== "boolean")) {
       throw new Error("Invalid posted.jsonl entry: refusing to publish");
     }
   }
@@ -52,7 +55,7 @@ export function pendingPosts(): LedgerEntry[] {
   for (const entry of readLedger()) {
     if (!entry.dryRun) latest.set(`${entry.product}:${entry.version}`, entry);
   }
-  return [...latest.values()].filter((entry) => !entry.tweetId);
+  return [...latest.values()].filter((entry) => !entry.tweetId || entry.replyPending);
 }
 
 export function postingDay(date: Date): string {
@@ -80,6 +83,7 @@ export function hasPostedLive(product: Product, version: string): boolean {
       e.product === product &&
       (e.version === version || e.coveredVersions?.includes(version)) &&
       Boolean(e.tweetId) &&
+      !e.replyPending &&
       e.dryRun === false,
   );
 }

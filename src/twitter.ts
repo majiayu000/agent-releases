@@ -79,7 +79,8 @@ export async function postTweet(
 export async function postRootThenOfficialReply(
   rootText: string,
   officialUrl: string,
-  send: typeof postTweet = postTweet,
+  send: typeof postTweet,
+  persistRoot: (rootId: string) => void | Promise<void>,
 ): Promise<string> {
   if (/https?:\/\//i.test(rootText)) {
     throw new Error(
@@ -88,7 +89,12 @@ export async function postRootThenOfficialReply(
   }
   const rootId = await send(rootText);
   if (!/^\d+$/.test(rootId)) throw new Error("X returned no valid tweet ID; outcome unknown");
-  const replyId = await send(`官方：${officialUrl}`, rootId);
-  if (!/^\d+$/.test(replyId)) throw new Error("X returned no valid reply tweet ID; outcome unknown");
+  try {
+    await persistRoot(rootId);
+    const replyId = await send(`官方：${officialUrl}`, rootId);
+    if (!/^\d+$/.test(replyId)) throw new Error("X returned no valid reply tweet ID; outcome unknown");
+  } catch (error) {
+    throw new Error(`Root tweet ${rootId} was posted; reconcile the official reply before retry: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+  }
   return rootId;
 }
