@@ -6,7 +6,7 @@ import {
   fetchCodexAppSince,
   parseCodexAppEntries,
 } from "./sources/codex-app.ts";
-import { isNotable, pickBullets, selectRadarCandidate } from "./filter.ts";
+import { isNotable, isEmptyChore, pickBullets, selectRadarCandidate } from "./filter.ts";
 import { postHeader, TWEET_VERSION_KEY } from "./sources/types.ts";
 import type { Release } from "./sources/types.ts";
 
@@ -89,6 +89,31 @@ describe("codex app radar", () => {
 });
 
 describe("codex app changelog", () => {
+  test("list-only App articles retain chore filtering and concrete features", () => {
+    for (const [bullet, postable] of [
+      ["build: switch the bundler", false],
+      ["Bump actions/checkout from 4 to 5", false],
+      ["Small bug fixes", false],
+      ["Build a plugin marketplace for team sharing", true],
+      ["Internal hooks for third-party agents", true],
+    ] as const) {
+      const [release] = parseCodexAppEntries(
+        `<li id="codex-2027-01-01-app" data-codex-topics="codex-app">` +
+        `<h3>Codex app 27.101</h3><article><ul><li>${bullet}</li></ul></article></li>`,
+      );
+      expect(isEmptyChore(release!.notes)).toBe(!postable);
+      expect(selectRadarCandidate([release!], "26.1231")).toEqual(
+        postable ? { skip: [], candidate: release! } : { skip: [release!], candidate: null },
+      );
+    }
+    const [mixed] = parseCodexAppEntries(
+      `<li id="codex-2027-01-01-app" data-codex-topics="codex-app"><h3>Codex app 27.101</h3>` +
+      `<article><ul><li>chore: #123 update metadata</li><li>style: Fixed a crash</li>` +
+      `<li>Added support for custom commands and terminal sessions</li></ul></article></li>`,
+    );
+    expect(pickBullets(mixed!.notes, 2)).toEqual(["Added support for custom commands and terminal sessions"]);
+  });
+
   test.each([
     { cursor: "codex-2026-12-31-app", cursorBuild: "26.1231", olderBuild: null, nextBuild: "27.101", post: true },
     { cursor: "codex-2027-01-01-app", cursorBuild: "26.1231", olderBuild: null, nextBuild: "27.101", post: true },
