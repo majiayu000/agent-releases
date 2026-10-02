@@ -62,6 +62,13 @@ describe("codex app radar", () => {
     expect(result.candidate?.notes).toContain("## 26.908");
   });
 
+  test("posted new-year App release supplies the next build baseline", () => {
+    const known = { ...appRelease("codex-2027-01-01-app", "27.101"), previousAppBuild: "26.1231" };
+    const next = { ...appRelease("codex-2027-01-02-app", "27.102"), previousAppBuild: "27.101" };
+    const selection = selectRadarCandidate([known, next], "codex-2026-12-31-app", new Set([known.version]));
+    expect(selection).toEqual({ skip: [known, next], candidate: null });
+  });
+
   test("skipped build notes still establish the next build comparison", () => {
     const skipped = appRelease("codex-2026-09-30-app", "26.930", "- Fixed a crash");
     const thin = appRelease("codex-2026-10-01-app", "26.1001");
