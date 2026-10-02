@@ -210,6 +210,19 @@ test("SQLite coalesced members survive rewinds without the tip in the feed", asy
   expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.2" });
 });
 
+test("SQLite plaintext pending fails loudly without sending or clearing state", async () => {
+  connection.query("INSERT INTO publications (product,version,status,text,reserved_at,day) VALUES ('claude','1.0.3','pending',?,?,?)")
+    .run("synthetic previous publisher reservation", new Date().toISOString(), "2026-10-02");
+  const rows = connection.query("SELECT * FROM publications").all();
+  const cursors = connection.query("SELECT * FROM cursors ORDER BY product").all();
+  await expect(runPublisher(db, false)).rejects.toThrow("Reconcile pending X outcome");
+  await expect(runPublisher(db, true)).rejects.toThrow("Reconcile pending X outcome");
+  await expect(reconcile()).rejects.toThrow("malformed JSON");
+  expect(sent).toBe(0);
+  expect(connection.query("SELECT * FROM publications").all()).toEqual(rows);
+  expect(connection.query("SELECT * FROM cursors ORDER BY product").all()).toEqual(cursors);
+});
+
 test("SQLite coalesced members consume only one daily slot", async () => {
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
   for (let i = 0; i < DAILY_PUBLICATION_LIMIT - 2; i++) connection.query("INSERT INTO publications (product,version,status,text,reserved_at,day,tweet_id) VALUES ('claude',?,'posted','history',?,?,?)").run(`0.0.${i}`, new Date().toISOString(), day, String(i));

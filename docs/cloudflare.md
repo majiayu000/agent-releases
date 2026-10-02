@@ -55,6 +55,8 @@ bunx wrangler d1 execute DB --remote --file /tmp/agent-releases-import.sql
 
 ## 复查和解除停发
 
+本版本的 pending `text` 为含 `text`、`coveredVersions` 的 JSON。旧版纯文本 pending 不适用以下 JSON 查询和恢复 SQL，执行会报 `malformed JSON`，事务必须回滚并保留记录。升级前先停止调度并人工核对旧版本的发送结果，处理完未决记录后再切换；不自动迁移或清除旧 pending。
+
 ```sh
 bunx wrangler d1 execute DB --remote --command "SELECT product,version,status,tweet_id,reserved_at,posted_at FROM publications ORDER BY reserved_at DESC LIMIT 30"
 bunx wrangler d1 execute DB --remote --command "SELECT product,version,json_extract(text,'$.text') AS text,json_extract(text,'$.coveredVersions') AS covered_versions,reserved_at FROM publications WHERE status='pending'"
