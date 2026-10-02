@@ -369,6 +369,70 @@ describe("release content", () => {
 
 
 describe("radar coalesce / de-noise", () => {
+  test.each([
+    "Build a plugin marketplace for team sharing",
+    "Style the projects sidebar with the new theme",
+    "Minor latency win for long tool calls",
+    "Internal hooks for third-party agents",
+    "Internal improvements to third-party agent hooks",
+    "Bump the context window to 128k tokens",
+    "Bump API from v1.0 to v2.0",
+    "Bump context from 64.0k to 128.0k",
+  ])("keeps feature prose postable: %s", (bullet) => {
+    const notes = `- ${bullet}`;
+    expect(isNotable(notes)).toBe(true);
+    expect(isEmptyChore(notes)).toBe(false);
+    for (const version of ["1.1.0", "2.0.0"]) {
+      const r = { ...release("claude", version), notes };
+      expect(selectRadarCandidate([r], "1.0.0")).toEqual({ skip: [], candidate: r });
+    }
+  });
+
+  test.each([
+    "build: switch the bundler",
+    "build(deps): refresh tooling",
+    "chore: tidy package metadata",
+    "Chore update dependencies",
+    "Refactor plugin loader internals",
+    "ci: refresh the runner image",
+    "Documentation updates",
+    "Docs updates",
+    "CI improvements",
+    "Internal improvements",
+    "Internal changes",
+    "[Windows] style: reformat sources",
+    "internal(runtime): reorganize helpers",
+    "minor: tidy formatting",
+    "Small bug fixes",
+    "Various bug fixes",
+    "Minor fixes",
+    "Minor improvements",
+    "Small improvements",
+    "Various improvements",
+    "Bump dependencies",
+    "Bump actions/checkout from 4.1.0 to 4.1.1",
+    "Bump actions/checkout from 4 to 5",
+    "Bump lodash from 4.17.20 to 4.17.21",
+    "Update lodash from 4.17.20 to 4.17.21",
+    "Update @types/bun from 1.0.0 to 1.1.0",
+    "Update lockfile",
+    "依赖升级",
+  ])("keeps explicit chores filtered: %s", (bullet) => {
+    const notes = `- ${bullet}`;
+    expect(isEmptyChore(notes)).toBe(true);
+    for (const version of ["1.1.0", "2.0.0"]) {
+      const r = { ...release("claude", version), notes };
+      expect(selectRadarCandidate([r], "1.0.0")).toEqual({ skip: [r], candidate: null });
+    }
+  });
+
+  test("filters fixes and metadata behind chore labels before picking features", () => {
+    const feature = "Added support for custom commands and terminal sessions";
+    const notes = `- chore: #123 update metadata\n- style: Fixed a crash\n- ${feature}`;
+    expect(pickBullets(notes, 2)).toEqual([feature]);
+    expect(isEmptyChore(notes)).toBe(false);
+  });
+
   test("version bump kind and empty-chore / valuable heuristics", () => {
     expect(versionBumpKind("1.2.3", "1.2.2")).toBe("patch");
     expect(versionBumpKind("1.3.0", "1.2.9")).toBe("minor");
