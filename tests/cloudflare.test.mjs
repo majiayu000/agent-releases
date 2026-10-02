@@ -14,7 +14,7 @@ const day = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }
 /** Keep in sync with src/limits.ts */
 const DAILY_PUBLICATION_LIMIT = 12;
 
-async function setup(t, { preview = false, failX = false, failSource = false, failDraft = false, missingX = false, patchBundle = false, thinOlder = false } = {}) {
+async function setup(t, { preview = false, failX = false, failReply = false, invalidReplyId = false, failSource = false, failDraft = false, missingX = false, patchBundle = false, thinOlder = false } = {}) {
   const calls = { tweets: 0, drafts: 0 };
   let db;
   const secrets = {
@@ -67,6 +67,7 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
           const body = await request.json();
           if (body.reply?.in_reply_to_tweet_id) {
             assert.match(body.text, /^官方：https?:\/\//);
+            assert.equal(pending.results[0].tweet_id, body.reply.in_reply_to_tweet_id, 'root ID must be durable before the reply');
           } else {
             assert.equal(body.text, JSON.parse(pending.results[0].text).text);
             assert.ok(!/https?:\/\//i.test(body.text), 'root tweet must have zero links');
@@ -74,6 +75,8 @@ async function setup(t, { preview = false, failX = false, failSource = false, fa
           assert.match(request.headers.get('authorization'), /OAuth /);
           calls.tweets++;
           if (failX) return Response.json({ detail: 'outcome unknown' }, { status: 503 });
+          if (body.reply && failReply) return Response.json({ detail: 'reply outcome unknown' }, { status: 503 });
+          if (body.reply && invalidReplyId) return Response.json({ data: { id: 'invalid' } });
           return Response.json({ data: { id: String(9000 + calls.tweets) } });
         }
         throw new Error(`Unexpected outbound request: ${request.url}`);
@@ -123,12 +126,29 @@ test('unknown X result stays pending and blocks every later run', async t => {
   assert.equal(calls.tweets, 1);
 });
 
+for (const mode of ['failReply', 'invalidReplyId']) test(`D1 retains the known root after ${mode}`, async t => {
+  const { db, calls, run } = await setup(t, { [mode]: true });
+  assert.equal((await run()).outcome, 'exception');
+  assert.deepEqual(await db.prepare("SELECT status,tweet_id,posted_at FROM publications").first(), { status: 'pending', tweet_id: '9001', posted_at: null });
+  assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.0.0');
+  assert.equal((await run()).outcome, 'exception');
+  assert.equal(calls.tweets, 2);
+});
+
+for (const action of ["ABORT, 'root checkpoint failed'", 'IGNORE']) test(`D1 root checkpoint ${action} stops before the reply`, async t => {
+  const { db, calls, run } = await setup(t);
+  await db.prepare(`CREATE TRIGGER fail_root BEFORE UPDATE OF tweet_id ON publications WHEN NEW.status='pending' BEGIN SELECT RAISE(${action}); END`).run();
+  assert.equal((await run()).outcome, 'exception');
+  assert.equal(calls.tweets, 1);
+  assert.deepEqual(await db.prepare("SELECT status,tweet_id FROM publications").first(), { status: 'pending', tweet_id: null });
+});
+
 test('D1 completion failure preserves pending intent after X success', async t => {
   const { db, calls, run } = await setup(t);
   await db.prepare("CREATE TRIGGER fail_completion BEFORE UPDATE ON cursors BEGIN SELECT RAISE(ABORT, 'test completion failure'); END").run();
   assert.equal((await run()).outcome, 'exception');
   assert.equal(calls.tweets, 2);
-  assert.equal((await db.prepare("SELECT status FROM publications").first()).status, 'pending');
+  assert.deepEqual(await db.prepare("SELECT status,tweet_id FROM publications").first(), { status: 'pending', tweet_id: '9001' });
   assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.0.0');
   assert.equal((await run()).outcome, 'exception');
   assert.equal(calls.tweets, 2);
@@ -267,7 +287,7 @@ for (const bundle of [false, true]) test(`D1 zero-row cursor completion preserve
   assert.equal((await run()).outcome, 'exception');
   assert.equal(calls.tweets, 2);
   assert.deepEqual((await db.prepare("SELECT version,status,tweet_id FROM publications").all()).results, [
-    { version: bundle ? '1.0.3' : '1.0.1', status: 'pending', tweet_id: null },
+    { version: bundle ? '1.0.3' : '1.0.1', status: 'pending', tweet_id: '9001' },
   ]);
   assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.0.0');
   assert.equal((await run()).outcome, 'exception');
@@ -343,7 +363,7 @@ for (const cursor of ['missing', 'changed', 'ignored']) test(`D1 documented reco
   else await db.prepare("CREATE TRIGGER ignore_cursor BEFORE UPDATE ON cursors BEGIN SELECT RAISE(IGNORE); END").run();
   await assert.rejects(reconcile(db));
   assert.deepEqual((await db.prepare('SELECT version,status,tweet_id FROM publications').all()).results,
-    [{ version: '1.0.3', status: 'pending', tweet_id: null }]);
+    [{ version: '1.0.3', status: 'pending', tweet_id: '9001' }]);
   const saved = await db.prepare("SELECT version FROM cursors WHERE product='claude'").first();
   assert.deepEqual(saved, cursor === 'missing' ? null : { version: cursor === 'changed' ? '9.0.0' : '1.0.0' });
   assert.equal((await run()).outcome, 'exception');
