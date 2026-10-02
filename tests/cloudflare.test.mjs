@@ -338,6 +338,20 @@ const recoverySql = readFileSync(new URL('../docs/cloudflare.md', import.meta.ur
 const reconcile = db => db.batch(recoverySql.map((sql, i) =>
   db.prepare(sql).bind(...(i === 1 ? ['1.0.0'] : ['9001', new Date().toISOString()]))));
 
+test('D1 plaintext pending fails loudly without sending or clearing state', async t => {
+  const { db, calls, run } = await setup(t);
+  await db.prepare("INSERT INTO publications (product,version,status,text,reserved_at,day) VALUES ('claude','1.0.3','pending',?,?,?)")
+    .bind('synthetic previous publisher reservation', new Date().toISOString(), '2026-10-02').run();
+  const rows = (await db.prepare('SELECT * FROM publications').all()).results;
+  const cursors = (await db.prepare('SELECT * FROM cursors ORDER BY product').all()).results;
+  assert.equal((await run()).outcome, 'exception');
+  await assert.rejects(reconcile(db), /malformed JSON/);
+  assert.equal(calls.tweets, 0);
+  assert.equal(calls.drafts, 0);
+  assert.deepEqual((await db.prepare('SELECT * FROM publications').all()).results, rows);
+  assert.deepEqual((await db.prepare('SELECT * FROM cursors ORDER BY product').all()).results, cursors);
+});
+
 for (const cursor of ['missing', 'changed', 'ignored']) test(`D1 documented recovery rolls back a ${cursor} cursor`, async t => {
   const { db, calls, run } = await setup(t, { patchBundle: true });
   await db.prepare("CREATE TRIGGER fail_completion BEFORE UPDATE ON cursors BEGIN SELECT RAISE(ABORT, 'completion failed'); END").run();
@@ -369,7 +383,8 @@ for (const size of [15, 16, 100]) test(`D1 completion supports a ${size}-release
   assert.equal(calls.tweets, 8);
 });
 
-test('export CLI imports every reconciled bundle member and prevents D1 rewind replay', async t => {
+for (const coveredVersions of [['1.0.1', '1.0.2', '1.0.3'], ['1.0.1', '1.0.2']])
+test(`export CLI imports every reconciled bundle member and tip (${coveredVersions.length} members)`, async t => {
   const { db, calls, run } = await setup(t, { patchBundle: true });
   await db.prepare('DELETE FROM cursors').run();
   const dir = mkdtempSync(join(tmpdir(), 'agent-release-bundle-import-'));
@@ -381,7 +396,7 @@ test('export CLI imports every reconciled bundle member and prevents D1 rewind r
   const rows = [
     { product: 'claude', version: '1.0.1', dryRun: false, tweetId: '111', text: 'earlier', ts },
     { product: 'claude', version: '1.0.3', coveredVersions: ['1.0.1', '1.0.2', '1.0.3'], dryRun: false, text: "operator's bundle", ts },
-    { product: 'claude', version: '1.0.3', coveredVersions: ['1.0.1', '1.0.2', '1.0.3'], dryRun: false, tweetId: '222', text: "operator's bundle", ts },
+    { product: 'claude', version: '1.0.3', coveredVersions, dryRun: false, tweetId: '222', text: "operator's bundle", ts },
     { product: 'claude', version: '1.0.3', coveredVersions: ['1.0.1', '1.0.2', '1.0.3'], dryRun: true, tweetId: '333', text: 'preview', ts },
   ];
   writeFileSync(join(dir, '.state/posted.jsonl'), rows.map(row => JSON.stringify(row)).join('\n'));
@@ -396,4 +411,25 @@ test('export CLI imports every reconciled bundle member and prevents D1 rewind r
   assert.equal((await run()).outcome, 'ok');
   assert.equal(calls.tweets, 0);
   assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.0.3');
+});
+
+test('export CLI retains a posted tip with an empty member array', async t => {
+  const { db, calls, run } = await setup(t);
+  await db.prepare('DELETE FROM cursors').run();
+  const dir = mkdtempSync(join(tmpdir(), 'agent-release-empty-members-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, '.state'));
+  for (const product of products) writeFileSync(join(dir, `.state/last_posted_${product}.txt`),
+    product === 'codex' ? 'rust-v1.0.1' : product === 'codex_app' ? 'codex-2026-09-11-app' : '1.0.1');
+  writeFileSync(join(dir, '.state/posted.jsonl'), JSON.stringify({ product: 'claude', version: '1.0.1',
+    coveredVersions: [], dryRun: false, tweetId: '222', text: 'confirmed tip', ts: new Date().toISOString() }) + '\n');
+  const exported = spawnSync('bun', [fileURLToPath(new URL('../scripts/export-d1.ts', import.meta.url))], { cwd: dir, encoding: 'utf8' });
+  assert.equal(exported.status, 0, exported.stderr);
+  for (const sql of exported.stdout.trim().split('\n')) await db.prepare(sql).run();
+  assert.deepEqual((await db.prepare('SELECT version,status,tweet_id FROM publications').all()).results,
+    [{ version: '1.0.1', status: 'posted', tweet_id: '222' }]);
+  await db.prepare("UPDATE cursors SET version='1.0.0' WHERE product='claude'").run();
+  assert.equal((await run()).outcome, 'ok');
+  assert.equal(calls.tweets, 0);
+  assert.equal((await db.prepare("SELECT version FROM cursors WHERE product='claude'").first()).version, '1.0.1');
 });
