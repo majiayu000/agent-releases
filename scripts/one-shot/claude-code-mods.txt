@@ -1,0 +1,21 @@
+【Claude】Claude Code Mods：用 TypeScript 改 harness 行为
+
+要点：
+
+• Claude Code 2.1.287 起正式提供 Mods：插件里的 TypeScript 函数，可在事件前后改写提示、拦 / 改工具调用、批权限、改 UI
+• 比 Hooks 更深：能改写事件、画新界面、替换内置功能（例如 `/diff` 已迁成可关可换的 mod）
+• 仍走 `/plugin` 安装与分享；Mods 随插件分发。权限等同本机 Claude Code，无沙箱，只装信任来源
+• 同版还加了旁观插件「You should know」：`/plugin enable cc-plugin-you-should-know@builtin`（一等会话且开了遥测）
+• Team / Enterprise 与 managed settings 机器会先加载 `sec-default`，限制用户安装的 mods 覆盖拒绝规则等
+
+谁受影响：
+
+• 要深度定制 Claude Code CLI / 桌面端的个人与团队；写插件的人、管市场的管理员
+
+怎么验：
+
+• 升到 2.1.287+；`/plugin` 看 builtin mods；按官方指南写或装一个带 mod 的插件
+
+👇 详情请看
+---
+官方：https://claude.com/blog/claude-code-mods
