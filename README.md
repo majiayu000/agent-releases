@@ -2,6 +2,20 @@
 
 为 [@agentreleases](https://x.com/agentreleases) 整理 Claude Code、Codex CLI、Codex App 和 Grok Build 的中文版本更新。非官方，与 Anthropic / OpenAI / xAI 无关。
 
+## 先看什么
+
+想看中文更新，阅读 [@agentreleases](https://x.com/agentreleases)；想核对完整原文，按产品进入官方来源：
+
+| 产品 | 官方更新来源 | 本项目的用途 |
+| --- | --- | --- |
+| Claude Code | [GitHub Releases](https://github.com/anthropics/claude-code/releases) | 整理有功能变化的版本为中文草稿 |
+| Codex CLI | [GitHub Releases](https://github.com/openai/codex/releases) | 跟踪 CLI 发布，和 App 分开处理 |
+| Codex App | [官方 changelog](https://developers.openai.com/codex/changelog) | 从官方页面提取 App 更新 |
+| Grok Build | [官方 changelog](https://x.ai/build/changelog) | 整理 Build 更新，不是 Grok Bot 分享目录 |
+
+这里会跳过纯修复版本，不能代替完整更新日志，也不代表厂商发布渠道。中文解读有疑问时，先核对产品、版本和原文，再在 [Issues](https://github.com/majiayu000/agent-releases/issues) 附公开来源反馈。
+
+想运行发布器，先读 [VPS 只读预览](docs/vps.md)。阅读更新不需要部署服务；预览和正式发布的区别见下方运行方式。
 ## 当前运行方式
 
 AaITR VPS 上的 `agent-releases.timer` 每小时第 17 分钟检查更新；SQLite 的 `cursors` 保存处理进度，`publications` 保存发布状态。Cloudflare 定时器关闭且保持预览配置，D1 和旧 `publication-state` 分支只保留迁移历史。
