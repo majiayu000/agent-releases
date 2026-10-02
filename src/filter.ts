@@ -37,7 +37,7 @@ export function pickBullets(notes: string, max = 3): string[] {
       continue;
     }
     if (excludedDepth !== null || !/^\s*(?:[-*]|\d+\.)\s+/.test(raw)) continue;
-    const bullet = raw.replace(/^\s*(?:[-*]|\d+\.)\s+/, "").trim();
+    const bullet = raw.replace(/^\s*(?:[-*]|\d+\.)\s+(?:-\s+)?/, "").trim();
     if (!bullet || isFixBullet(bullet) || META_BULLET.test(featureProse(bullet))) continue;
     features.push(bullet);
   }
