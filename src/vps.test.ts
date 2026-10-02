@@ -110,6 +110,39 @@ test("SQLite commits a reservation before mock X, completes atomically and rejec
   expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.1" });
 });
 
+test.each(["none", "x"] as const)("interrupted patch bundle keeps the SQLite cursor until mock X completes: %s", async outcome => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    if (url.hostname === "api.github.com" && url.pathname.includes("/anthropics/")) {
+      return Response.json(["1.0.3", "1.0.2", "1.0.1", "1.0.0"].map(version => ({
+        tag_name: `v${version}`, html_url: release.url, draft: false, prerelease: false,
+        body: version === "1.0.3"
+          ? "- Fixed a terminal crash when reopening an existing session"
+          : "- Added support for custom commands and terminal sessions",
+      })));
+    }
+    return previousFetch(input);
+  }) as typeof fetch;
+  failure = outcome;
+  if (outcome === "x") {
+    await expect(runPublisher(db, false)).rejects.toThrow("X response lost");
+    expect(sent).toBe(1);
+    expect(connection.query("SELECT version,status FROM publications").get()).toEqual({ version: "1.0.2", status: "pending" });
+    expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.0" });
+    await expect(runPublisher(db, false)).rejects.toThrow("Reconcile pending");
+    expect(sent).toBe(1);
+  } else {
+    await runPublisher(db, false);
+    expect(sent).toBe(2);
+    expect(connection.query("SELECT version,status FROM publications").get()).toEqual({ version: "1.0.2", status: "posted" });
+    expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.2" });
+    await runPublisher(db, false);
+    expect(sent).toBe(2);
+    expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.3" });
+  }
+});
+
 test("unknown mock X outcome survives reopening SQLite and blocks later runs", async () => {
   failure = "x";
   await expect(runPublisher(db, false)).rejects.toThrow("X response lost");
@@ -198,6 +231,19 @@ test("SQLite coalesced members survive rewinds without the tip in the feed", asy
     { version: "1.0.3", status: "posted", tweet_id: "123456" },
   ]);
   expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.2" });
+});
+
+test("SQLite plaintext pending fails loudly without sending or clearing state", async () => {
+  connection.query("INSERT INTO publications (product,version,status,text,reserved_at,day) VALUES ('claude','1.0.3','pending',?,?,?)")
+    .run("synthetic previous publisher reservation", new Date().toISOString(), "2026-10-02");
+  const rows = connection.query("SELECT * FROM publications").all();
+  const cursors = connection.query("SELECT * FROM cursors ORDER BY product").all();
+  await expect(runPublisher(db, false)).rejects.toThrow("Reconcile pending X outcome");
+  await expect(runPublisher(db, true)).rejects.toThrow("Reconcile pending X outcome");
+  await expect(reconcile()).rejects.toThrow("malformed JSON");
+  expect(sent).toBe(0);
+  expect(connection.query("SELECT * FROM publications").all()).toEqual(rows);
+  expect(connection.query("SELECT * FROM cursors ORDER BY product").all()).toEqual(cursors);
 });
 
 test("SQLite coalesced members consume only one daily slot", async () => {

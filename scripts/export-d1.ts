@@ -17,7 +17,7 @@ for (const product of ["claude", "codex", "codex_app", "grok_build"] as const) {
 // Retain one confirmed success per product/version, including deleted posts.
 const posted = new Map<string, ReturnType<typeof readLedger>[number]>();
 for (const entry of readLedger()) if (!entry.dryRun && entry.tweetId) {
-  for (const version of entry.coveredVersions ?? [entry.version]) {
+  for (const version of [entry.version, ...(entry.coveredVersions ?? [])]) {
     posted.set(`${entry.product}:${version}`, { ...entry, version });
   }
 }

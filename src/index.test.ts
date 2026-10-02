@@ -518,6 +518,70 @@ describe("radar coalesce / de-noise", () => {
     expect(bundle.skip).toEqual([]);
   });
 
+  test.each([
+    "Build a plugin marketplace for team sharing",
+    "Style the projects sidebar with the new theme",
+    "Minor latency win for long tool calls",
+    "Internal hooks for third-party agents",
+    "Internal improvements to third-party agent hooks",
+    "Bump the context window to 128k tokens",
+    "Bump API from v1.0 to v2.0",
+    "Bump context from 64.0k to 128.0k",
+  ])("keeps feature prose postable: %s", (bullet) => {
+    const notes = `- ${bullet}`;
+    expect(isNotable(notes)).toBe(true);
+    expect(isEmptyChore(notes)).toBe(false);
+    for (const version of ["1.1.0", "2.0.0"]) {
+      const r = { ...release("claude", version), notes };
+      expect(selectRadarCandidate([r], "1.0.0")).toEqual({ skip: [], candidate: r });
+    }
+  });
+
+  test.each([
+    "build: switch the bundler",
+    "build(deps): refresh tooling",
+    "chore: tidy package metadata",
+    "Chore update dependencies",
+    "Refactor plugin loader internals",
+    "ci: refresh the runner image",
+    "Documentation updates",
+    "Docs updates",
+    "CI improvements",
+    "Internal improvements",
+    "Internal changes",
+    "[Windows] style: reformat sources",
+    "internal(runtime): reorganize helpers",
+    "minor: tidy formatting",
+    "Small bug fixes",
+    "Various bug fixes",
+    "Minor fixes",
+    "Minor improvements",
+    "Small improvements",
+    "Various improvements",
+    "Bump dependencies",
+    "Bump actions/checkout from 4.1.0 to 4.1.1",
+    "Bump actions/checkout from 4 to 5",
+    "Bump lodash from 4.17.20 to 4.17.21",
+    "Update lodash from 4.17.20 to 4.17.21",
+    "Update @types/bun from 1.0.0 to 1.1.0",
+    "Update lockfile",
+    "依赖升级",
+  ])("keeps explicit chores filtered: %s", (bullet) => {
+    const notes = `- ${bullet}`;
+    expect(isEmptyChore(notes)).toBe(true);
+    for (const version of ["1.1.0", "2.0.0"]) {
+      const r = { ...release("claude", version), notes };
+      expect(selectRadarCandidate([r], "1.0.0")).toEqual({ skip: [r], candidate: null });
+    }
+  });
+
+  test("filters fixes and metadata behind chore labels before picking features", () => {
+    const feature = "Added support for custom commands and terminal sessions";
+    const notes = `- chore: #123 update metadata\n- style: Fixed a crash\n- ${feature}`;
+    expect(pickBullets(notes, 2)).toEqual([feature]);
+    expect(isEmptyChore(notes)).toBe(false);
+  });
+
   test("version bump kind and empty-chore / valuable heuristics", () => {
     expect(versionBumpKind("1.2.3", "1.2.2")).toBe("patch");
     expect(versionBumpKind("1.3.0", "1.2.9")).toBe("minor");
@@ -566,6 +630,75 @@ describe("radar coalesce / de-noise", () => {
     ], "1.0.0");
     expect(choreThenMajor.skip.map(r => r.version)).toEqual(["1.0.1"]);
     expect(choreThenMajor.candidate?.version).toBe("2.0.0");
+  });
+
+  test.each(["- Fixed a terminal crash", "- chore: bump dependencies"])(
+    "qualifying patches survive a later non-postable release: %s",
+    notes => {
+      const thin = (version: string): Release => ({ ...release("claude", version), notes: "- Added tiny tweak" });
+      const first = thin("1.0.1");
+      const second = thin("1.0.2");
+      const interrupt = { ...thin("1.0.3"), notes };
+      const major = release("claude", "2.0.0");
+      const bundled = selectRadarCandidate([first, second, interrupt, major], "1.0.0");
+      expect(bundled.skip).toEqual([]);
+      expect(bundled.candidate).toEqual(coalescePatchReleases([first, second]));
+
+      const rich = { ...first, notes: "- Added support for custom commands and terminal sessions" };
+      const singleton = selectRadarCandidate([rich, interrupt], "1.0.0");
+      expect(singleton.skip).toEqual([]);
+      expect(singleton.candidate).toEqual(rich);
+
+      const skipped = selectRadarCandidate([first, interrupt], "1.0.0");
+      expect(skipped.skip).toEqual([first, interrupt]);
+      expect(skipped.candidate).toBeNull();
+
+      const leadingSkip = { ...release("claude", "1.0.0"), notes };
+      const afterSkip = selectRadarCandidate([leadingSkip, first, second, interrupt], "0.9.9");
+      expect(afterSkip.skip).toEqual([leadingSkip]);
+      expect(afterSkip.candidate).toEqual(coalescePatchReleases([first, second]));
+    },
+  );
+
+  test.each(["1.1.0", "2.0.0"])("directly following %s still takes priority over buffered patches", version => {
+    const patches = ["1.0.1", "1.0.2"].map(v => release("claude", v));
+    const next = release("claude", version);
+    expect(selectRadarCandidate([...patches, next], "1.0.0")).toEqual({ skip: patches, candidate: next });
+  });
+
+  test("prepare leaves the interrupting fix for the run after publishing the patch bundle", async () => {
+    const list = ["1.0.1", "1.0.2", "1.0.3"].map(version => ({
+      ...release("claude", version),
+      notes: version === "1.0.3" ? "- Fixed a terminal crash" : "- Added tiny tweak",
+    }));
+    const sources = [source("claude", list)];
+    const plan = await prepare(true, "bundle", sources, draft, now);
+    expect(plan.posts.map(p => p.release.displayVersion)).toEqual(["1.0.1→1.0.2"]);
+    expect(readState("claude")).toBe("1.0.0");
+    expect(pendingPosts().map(p => p.version)).toEqual(["1.0.2"]);
+    await publish(plan, async () => "123", () => now);
+    expect(readState("claude")).toBe("1.0.2");
+    expect(hasPostedLive("claude", "1.0.2")).toBe(true);
+    const next = await prepare(true, "fix", sources, draft, now);
+    expect(next.posts).toEqual([]);
+    expect(readState("claude")).toBe("1.0.3");
+    expect(pendingPosts()).toEqual([]);
+  });
+
+  test("interrupted bundle draft failure and malformed notes preserve the file cursor and ledger", async () => {
+    const list = ["1.0.1", "1.0.2", "1.0.3"].map(version => ({
+      ...release("claude", version),
+      notes: version === "1.0.3" ? "- Fixed a terminal crash" : "- Added tiny tweak",
+    }));
+    await expect(prepare(true, "bundle", [source("claude", list)], async () => {
+      throw new Error("draft failed");
+    }, now)).rejects.toThrow("draft failed");
+    expect(readState("claude")).toBe("1.0.0");
+    expect(readLedger()).toEqual([]);
+    list[2]!.notes = "Unparseable release body";
+    await expect(prepare(true, "malformed", [source("claude", list)], draft, now)).rejects.toThrow("No structured");
+    expect(readState("claude")).toBe("1.0.0");
+    expect(readLedger()).toEqual([]);
   });
 
   test("prepare absorbs thin patches and posts a coalesced tip once", async () => {

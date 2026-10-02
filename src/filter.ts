@@ -9,9 +9,9 @@ const META_BULLET = /^(?:full changelog|changelog:|#\d+\b|\[?#\d+\]?\()/i;
 const REGRESSION = /\bno longer\s+(?:jumps?|fail(?:s|ed|ing)?|crash(?:es|ed|ing)?|hangs?|freez(?:e|es|ed|ing))\b|不再意外跳动/i;
 /** Dependency / CI / internal chores that should not become radar posts. */
 const CHORE_BULLET =
-  /^(?:chore|deps?|bump|ci|build|internal|refactor|style|docs?(?:umentation)?)\b|^(?:chore|deps?|bump|ci|build|docs?)[:\s]|^(?:bump|update[sd]?)\s+(?:dependencies|dependency|deps|lockfile|ci)\b|依赖升级|内部重构|文档(?:更新|修正)/i;
+  /^(?:chore|refactor)\b|^(?:deps?|bump|ci|build|internal|style|docs?(?:umentation)?)(?:\([^)]+\))?!?:|^(?:bump|update[sd]?)\s+(?:(?:dependencies|dependency|deps|lockfile|ci)\b|@?[\w.-]+\/[\w.-]+\s+from\s+v?\d+(?:\.\S+)?\s+to\s+v?\d+(?:\.\S+)?(?=\s|[.!]?$)|[\w.-]+\s+from\s+v?\d+\.\d+\.\S+\s+to\s+v?\d+\.\d+\.\S+)|^(?:docs?|documentation|ci)\s+(?:updates?|improvements?)[.!]?$|^internal\s+(?:improvements?|changes?)[.!]?$|依赖升级|内部重构|文档(?:更新|修正)/i;
 const FLUFF_BULLET =
-  /^(?:minor|small|various|misc(?:ellaneous)?)\b|改进可靠性|小幅(?:优化|改进)|miscellaneous\b|maintenance\b/i;
+  /^(?:minor|small|various|misc(?:ellaneous)?)(?:(?:\([^)]+\))?!?:|\s+(?:bug\s+)?fix(?:es)?\b|\s+improvements?[.!]?$)|改进可靠性|小幅(?:优化|改进)|miscellaneous\b|maintenance\b/i;
 
 function featureProse(bullet: string): string {
   const withoutTag = bullet.replace(/^(?:\[[^\]]+\]\s*)+/, "");
@@ -37,7 +37,7 @@ export function pickBullets(notes: string, max = 3): string[] {
       continue;
     }
     if (excludedDepth !== null || !/^\s*(?:[-*]|\d+\.)\s+/.test(raw)) continue;
-    const bullet = raw.replace(/^\s*(?:[-*]|\d+\.)\s+/, "").trim();
+    const bullet = raw.replace(/^\s*(?:[-*]|\d+\.)\s+(?:-\s+)?/, "").trim();
     if (!bullet || isFixBullet(bullet) || META_BULLET.test(featureProse(bullet))) continue;
     features.push(bullet);
   }
@@ -55,8 +55,10 @@ export function isEmptyChore(notes: string): boolean {
   const bullets = pickBullets(notes, 10);
   if (!bullets.length) return true;
   return bullets.every((bullet) => {
+    const labeled = bullet.replace(/^(?:\[[^\]]+\]\s*)+/, "");
     const prose = featureProse(bullet);
-    return CHORE_BULLET.test(prose) || FLUFF_BULLET.test(prose);
+    return CHORE_BULLET.test(labeled) || FLUFF_BULLET.test(labeled) ||
+      CHORE_BULLET.test(prose) || FLUFF_BULLET.test(prose);
   });
 }
 
@@ -141,6 +143,10 @@ export function selectRadarCandidate(releases: Release[], previousVersion: strin
     if (appBuild) priorAppBuild = appBuild;
     prior = release.version;
     if (!notable || isEmptyChore(release.notes)) {
+      // Flush a postable buffer below; leave the interrupting release for the next run.
+      if (patchBuffer.length >= 2 || (patchBuffer.length === 1 && isClearlyValuable(patchBuffer[0]!.notes))) {
+        break;
+      }
       absorbPatches();
       skip.push(release);
       continue;
