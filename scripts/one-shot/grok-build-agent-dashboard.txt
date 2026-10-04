@@ -1,0 +1,21 @@
+【Grok】Grok Build Agent Dashboard：一眼管多会话
+
+要点：
+
+• 所有 Grok Build 会话同屏总览：按 Needs input / Working / Idle 等状态分组，等你输入的排最上
+• 打开：shell 跑 `grok dashboard`，或会话内 `/dashboard`（`Ctrl+\`）
+• 选中行可预览最新输出并直接回复；空闲立即送达，忙碌则排队到本轮结束；审批/提问可在仪表盘内用数字键作答
+• 底部输入派发新会话：`Enter` 派发后留在仪表盘，`Shift+Enter` 派发并打开；可设模型、Plan、自动批准编辑
+• `Ctrl+W` 可让新会话进独立 git worktree；可按工作目录分组；关掉仪表盘后会话继续跑
+
+谁受影响：
+
+• 并行跑多个 Grok Build 编码会话、需要随时插话或审批的开发者
+
+怎么验：
+
+• 安装/更新 Grok Build 后跑 `grok dashboard`，或在任意会话里 `/dashboard`
+
+👇 详情请看
+---
+官方：https://x.ai/news/agent-dashboard
