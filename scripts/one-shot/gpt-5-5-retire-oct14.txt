@@ -1,9 +1,20 @@
-🩵🚀 【ChatGPT / Codex】GPT-5.5 将于 10 月 14 日退役
+【Codex】【ChatGPT】GPT-5.5 将于 10 月 14 日从 Codex / Work 退役
 
-ChatGPT、ChatGPT Work、Codex 各计划（含消费 / Business / Enterprise / Edu）将在 2026-10-14 下线 GPT-5.5；不影响 OpenAI API。
+要点：
 
-迁徙建议：
-• Codex（ChatGPT 登录）改用 `gpt-5.6-sol`（GPT-5.6 Sol）
-• 检查 workspace 默认、自定义 Agent、定时任务与脚本里的模型名
+• 🗓️ 2026-10-14：GPT-5.5 退出 ChatGPT、ChatGPT Work、Codex（消费 / Business / Enterprise / Edu 全计划）
+• ❌ 不影响 OpenAI API；只动 ChatGPT 登录侧的会话产品
+• 🧭 Codex（ChatGPT 登录）请改用 `gpt-5.6-sol`（GPT-5.6 Sol）；并清查 workspace 默认、自定义 Agent、定时任务与脚本里的模型名
+• ⚙️ 客户端与托管配置里若仍写死 `gpt-5.5`，到期后会选不到或失败——提前改比临时救火省事
 
-官方 changelog：https://developers.openai.com/codex/changelog
+谁受影响：
+
+• 还在用 GPT-5.5 的 Codex / ChatGPT Work 用户与管理员；Enterprise / Edu 需同步 workspace 模型策略
+
+怎么验：
+
+• 打开 Codex / Work 模型选择器看 GPT-5.5 是否仍在；CLI 用 `/model` 或启动参数确认默认已切到可用替代（如 `gpt-5.6-sol`）
+
+👇 详情请看
+---
+官方：https://developers.openai.com/codex/changelog
