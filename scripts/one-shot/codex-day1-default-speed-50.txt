@@ -1,0 +1,20 @@
+🩵🚀 【Codex】【ChatGPT】Day 1：默认速度约快 50%（Astra / Sol）
+
+要点：
+
+• 28 天「每天发一档，或整波 reset」系列 Day 1：先交默认吞吐
+• GPT-6 Astra 与 GPT-6.1 Sol 经订阅链路默认约快 50%；约 50 TPS vs 先前约 30 TPS
+• 覆盖所有走 Sign in with ChatGPT 的产品与伙伴（含 OpenCode、Pi、Amp、Devin 等）
+• 用户端无需改配置；优化 tokenizer + 更高效模型侧改动
+
+谁受影响：
+
+• Codex / ChatGPT Work，以及经 ChatGPT 登录接入的第三方 agent 用户
+
+怎么验：
+
+• 开新会话跑 Astra / Sol，体感吞吐是否抬升；第三方继续原 Sign in with ChatGPT 即可
+
+👇 详情请看
+---
+官方：https://x.com/thsottiaux/status/2107158998495748264
