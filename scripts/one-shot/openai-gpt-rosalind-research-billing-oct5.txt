@@ -1,0 +1,20 @@
+【OpenAI】`gpt-rosalind-research`：10 月 5 日起计费，仍非公开
+
+要点：
+
+• 官方 Pricing：`gpt-rosalind-research`（Life Sciences）自 2026-10-05 起开始计费
+• 访问仍限 trusted-access 计划下的已批准内部研究——不是公开模型上线 / GA
+• 价目已列：输入 $5 / 缓存输入 $0.50 / 输出 $25（每百万 token）；本模型不适用 cache-write 计价
+• 合格组织会随最新 GPT-Rosalind 发布继续获权；开发者宜继续盯模型档、访问与价格，勿当公共 GA 急改架构
+
+谁受影响：
+
+• 已在 trusted-access / 内部研究通道使用 Rosalind 的组织；盯着 API 模型表与账单的开发者
+
+怎么验：
+
+• 打开官方 Pricing，核对 `gpt-rosalind-research` 计费起始日与访问说明；无批准通道勿假定可调用
+
+👇 详情请看
+---
+官方：https://developers.openai.com/api/docs/pricing
