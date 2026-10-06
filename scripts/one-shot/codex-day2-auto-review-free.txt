@@ -1,0 +1,20 @@
+🩵🛡️ 【Codex】Day 2：Auto-review 对 ChatGPT 登录用户免费
+
+要点：
+
+• 28 天连更 Day 2.1：用 ChatGPT 账号登录 Codex 的用户，Auto-review 改为免费
+• Auto-review 由一个独立 agent 审批越出沙箱的操作，替代默认模式下每步都要人点同意
+• OpenAI 内部数据：比手动审批少停约 200 倍，需审的越界操作约 99% 被放行
+• Tibo 建议用它替代 Full access；官方也提醒它不是安全保证
+
+谁受影响：
+
+• 用 ChatGPT 账号登录的 Codex 用户，尤其常开 Full access 或被审批弹窗打断的人
+
+怎么验：
+
+• Settings → General → Permissions → Auto-review 打开
+
+👇 详情请看
+---
+官方：https://x.com/thsottiaux/status/2107368734981517634
