@@ -582,6 +582,22 @@ describe("radar coalesce / de-noise", () => {
     expect(isEmptyChore(notes)).toBe(false);
   });
 
+  test.each([10, 11, 30])("classifies features after %i chore bullets without display truncation", (count) => {
+    const chores = Array.from({ length: count }, (_, i) => `- chore: refresh build metadata ${i}`);
+    const feature = "Added support for custom commands and terminal sessions";
+    const notes = [...chores, `- ${feature}`].join("\n");
+    expect(isEmptyChore(notes)).toBe(false);
+    // Presentation still uses the caller's requested limit.
+    expect(pickBullets(notes)).toHaveLength(3);
+    expect(pickBullets(notes, 10)).toHaveLength(10);
+    for (const version of ["1.1.0", "2.0.0"]) {
+      const r = { ...release("claude", version), notes };
+      expect(selectRadarCandidate([r], "1.0.0")).toEqual({ skip: [], candidate: r });
+    }
+    expect(isEmptyChore(chores.join("\n"))).toBe(true);
+    expect(isEmptyChore([...chores, "## Bug Fixes", "- Fixed a terminal crash"].join("\n"))).toBe(true);
+  });
+
   test("version bump kind and empty-chore / valuable heuristics", () => {
     expect(versionBumpKind("1.2.3", "1.2.2")).toBe("patch");
     expect(versionBumpKind("1.3.0", "1.2.9")).toBe("minor");

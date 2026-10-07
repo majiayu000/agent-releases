@@ -52,7 +52,8 @@ export function isNotable(notes: string): boolean {
 
 /** True when every picked feature bullet is chore/fluff (or none remain). */
 export function isEmptyChore(notes: string): boolean {
-  const bullets = pickBullets(notes, 10);
+  // Classification must consider every change, independent of display limits.
+  const bullets = pickBullets(notes, Number.POSITIVE_INFINITY);
   if (!bullets.length) return true;
   return bullets.every((bullet) => {
     const labeled = bullet.replace(/^(?:\[[^\]]+\]\s*)+/, "");
