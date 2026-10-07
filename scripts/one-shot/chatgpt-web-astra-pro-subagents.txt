@@ -1,0 +1,20 @@
+【ChatGPT】社区观察：Web Astra Pro 开始用 subagents（非官方）
+
+要点：
+
+• 非官方 Codex Updates 称：跑 GPT-6 Astra Pro 时，ChatGPT Web 连相对简单任务也会拉起 subagents
+• 截图可见 Subagents 面板（如 Scene assets Working）、多路并行（Solve pages a/b/c）、Sites 与 Ran command
+• 工作负载从「单 agent 包办」转向「主会话 + 子代理分治」，属产品行为层面的 agentic 加深
+• 未见 OpenAI 官方公告；以社区截图为准，范围与可用性待官方确认
+
+谁受影响：
+
+• ChatGPT Web Pro / Astra Pro 用户，尤其界面出现 Subagents 的人
+
+怎么验：
+
+• Web 选 Pro / Astra Pro，跑稍复杂任务，看是否出现 Subagents 或并行子任务日志
+
+👇 详情请看
+---
+社区观察（非官方）：https://x.com/CodexResets1/status/2107410306641072258
