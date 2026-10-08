@@ -1,0 +1,25 @@
+⚡️💸 【Claude】Haiku 5.5 上线：比 Haiku 4.5 便宜约 75%，Max 每月送 API 额度
+
+要点：
+
+• 新小模型 `claude-haiku-5-5`，官方称标准速度下最快的一代；也是第一个能调 effort 的 Haiku
+• 价格（每百万 token，提示 10 万以内）：输入 $0.10 / 输出 $0.50 / 缓存读 $0.01；超过 10 万是 $0.50 / $2.50。Haiku 4.5 是 $1 / $5
+• 定位是子 Agent、上下文压缩、摘要这类量大的活；复杂编码官方仍推荐 Sonnet 5.5 / Opus 5.5（Terminal-Bench 4.0：Haiku 5.5 39.2%，Sonnet 5.5 70.6%）
+• Sonnet 5.5 缓存读减半到 $0.10，官方估多数 Agent 任务便宜约 20%
+• 本周起 Max 5x 每月 $100、Max 20x 每月 $200、Team 最多 $500（成员共享）Claude Platform API 额度，任意模型可用
+• Claude Code 2.1.293 已加入 Haiku 5.5，并设为 Anthropic API 上的默认 Haiku（1M 上下文）
+
+谁受影响：
+
+• 用 Claude Code 跑子 Agent、后台任务，或按 API 计费的人
+• Max / Team 订阅者：多一笔能调 API 的月度额度
+
+怎么验：
+
+• 升到 Claude Code 2.1.293+，`/model` 里看 Haiku 是否显示 5.5
+• API 请求体模型名写 `claude-haiku-5-5`
+• Max / Team 账号留意 Claude Platform 月度额度到账
+
+👇 详情请看
+---
+官方：https://www.anthropic.com/claude-haiku-5-5
