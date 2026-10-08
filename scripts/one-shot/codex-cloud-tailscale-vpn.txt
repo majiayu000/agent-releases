@@ -1,0 +1,23 @@
+🔌 【Codex】云任务能连你的内网了：Codex Cloud 支持 Tailscale VPN，Tailscale 自己事先都不知道
+
+要点：
+
+• 🌐 Codex Cloud 环境新增 VPN 设置，云任务可以访问内部 API、测试服务、私有包仓库这类 HTTP/HTTPS 服务
+• 🧩 目前唯一支持的 VPN 是 Tailscale，官方说更多 VPN 在计划中
+• 🔑 Tailscale auth key 要同时勾 Reusable 和 Ephemeral：每个新任务 VM 都能入网，下线后自动从 tailnet 移除
+• 🚧 主机名要解析到 IPv4；按 Tailscale 博客的实测，任意 TCP 要经 proxy:8088 的 HTTP CONNECT，SSH、UDP、ICMP 和入站连接不支持
+• 😮 Tailscale 官方博客（10-06）说没和 OpenAI 合作过，上线后才发现；提醒默认几乎能访问整个 tailnet，建议给 key 打 tag:codex 并用 grants 限权
+
+谁受影响：
+
+• 用 Codex Cloud 跑任务、又需要连公司内网服务的团队
+• Codex Cloud 仍在向 Plus 及以上付费账号逐步开放，可能还没轮到你
+
+怎么验：
+
+• 网页或桌面端新任务选 Work in Cloud，进环境 Advanced > VPN > Add，选 Tailscale 填 key
+• 目标地址要在 VPN 访问规则和环境联网白名单里都放行，保存后重新发布环境，开新任务 curl 一下内网服务
+
+👇 详情请看
+---
+官方：https://learn.chatgpt.com/docs/environments/cloud-environments
