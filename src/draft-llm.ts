@@ -43,7 +43,8 @@ function buildPrompt(release: Release): string {
   if (!bullets.length) throw new Error("No feature bullets available for Chinese drafting");
   return `把下面的版本更新概括成 ${bullets.length} 条简短的简体中文要点。
 硬性格式：每行必须以「恰好一个语义表情 + 空格 + 中文」开头（例如 🔧 / 🌿 / 💬 / ⚙️），禁止叠两个表情如「🔧 🛠️」，禁止用「•」「-」「*」当行首。
-每条用一句完整中文说明具体变化（能干什么），尽量不超过 30 个汉字。保留必要的反引号代码标识符，不添加原文没有的事实。
+每条用一句完整中文说明具体变化（能干什么），尽量不超过 30 个汉字。不添加原文没有的事实。
+禁止使用反引号和任何 Markdown（加粗、斜体、代码块、标题、列表符号）：X 不渲染 Markdown，会原样显示。命令、设置名、模型名、版本号直接写纯文本，例如 新增 maxEffortLevel 设置。
 不要标题、链接、解释、hashtag 或省略号；禁止「详见发版说明」「见 changelog」等空壳占位。只输出要点正文。
 
 ${bullets.map(b => `- ${b}`).join("\n")}`;

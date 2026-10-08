@@ -1,6 +1,9 @@
 import { existsSync } from "node:fs";
 import { readFileSync } from "node:fs";
 import { postTweet, uploadMedia } from "./twitter.ts";
+import { stripMarkdownForX } from "./x-markdown.ts";
+
+export { stripMarkdownForX };
 
 function loadText(): string {
   const fromEnv = process.env.POST_TEXT?.trim();
@@ -31,36 +34,6 @@ export function assertRootTweetHasNoLinks(root: string): void {
       "Root tweet must contain zero http(s) links; put the official URL after --- as 官方：…",
     );
   }
-}
-
-/**
- * X does not render Markdown: backticks and **bold** show up literally.
- * Strip every backtick (keep the inner text) and line-leading ** bold markers
- * instead of failing the post. Returns the cleaned text plus warnings to log.
- */
-export function stripMarkdownForX(text: string): { text: string; warnings: string[] } {
-  const warnings: string[] = [];
-  const backticks = text.match(/`/g)?.length ?? 0;
-  let out = text;
-  if (backticks > 0) {
-    out = out.replace(/`/g, "");
-    warnings.push(`removed ${backticks} backtick(s); X does not render Markdown`);
-  }
-  let boldLines = 0;
-  out = out
-    .split("\n")
-    .map((line) => {
-      const m = line.match(/^(\s*)\*\*(.*)$/);
-      if (!m) return line;
-      boldLines++;
-      // Drop the opening ** and the closing ** that pairs with it on the same line.
-      return `${m[1]}${m[2]!.replace(/\*\*/, "")}`;
-    })
-    .join("\n");
-  if (boldLines > 0) {
-    warnings.push(`removed line-leading ** bold on ${boldLines} line(s); X does not render Markdown`);
-  }
-  return { text: out, warnings };
 }
 
 function loadMediaPaths(): string[] {

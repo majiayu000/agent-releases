@@ -11,11 +11,12 @@ const release: Release = {
   version: "2.1.267",
   displayVersion: "2.1.267",
   title: "Claude Code 2.1.267",
+  // Upstream notes may carry backticks; posts must not.
   notes: "- Added `maxEffortLevel` setting",
   url: "https://github.com/anthropics/claude-code/releases/tag/v2.1.267",
 };
 
-const good = `${postHeader(release)}\n\n🔧 新增 \`maxEffortLevel\` 设置，可按模型限制努力等级上限`;
+const good = `${postHeader(release)}\n\n🔧 新增 maxEffortLevel 设置，可按模型限制努力等级上限`;
 const post = validateChinesePost(good, release);
 assert.ok(weightedXLength(post) <= X_WEIGHTED_LIMIT);
 assert.ok(post.startsWith("🟣🚀 【Claude】"));
@@ -27,7 +28,7 @@ assert.equal(weightedXLength("hello https://example.com/path?x=1 world"), 35);
 
 assert.throws(() =>
   validateChinesePost(
-    `${postHeader(release)}\n\n🔧 新增 \`maxEffortLevel\` setting (top-level or per model under \`modelSettings\`): caps the effort level…`,
+    `${postHeader(release)}\n\n🔧 新增 maxEffortLevel setting (top-level or per model under modelSettings): caps the effort level…`,
     release,
   ),
 );
@@ -36,29 +37,37 @@ assert.throws(() =>
 );
 assert.throws(() =>
   validateChinesePost(
-    `${postHeader(release)}\n\n• 新增 \`maxEffortLevel\` 设置，可按模型限制努力等级上限`,
+    `${postHeader(release)}\n\n• 新增 maxEffortLevel 设置，可按模型限制努力等级上限`,
     release,
   ),
 );
 assert.throws(
   () =>
     validateChinesePost(
-      `${postHeader(release)}\n\n🔧 新增 \`maxEffortLevel\` 设置，可按模型限制努力等级上限\n\n${release.url}`,
+      `${postHeader(release)}\n\n🔧 新增 maxEffortLevel 设置，可按模型限制努力等级上限\n\n${release.url}`,
       release,
     ),
   /zero http/,
 );
 
 assert.equal(
-  normalizeBulletEmoji("🔧 🛠️ 新增 `claude plugin eval`，可对插件评测并输出报告。"),
-  "🔧 新增 `claude plugin eval`，可对插件评测并输出报告。",
+  normalizeBulletEmoji("🔧 🛠️ 新增 claude plugin eval，可对插件评测并输出报告。"),
+  "🔧 新增 claude plugin eval，可对插件评测并输出报告。",
 );
 const doubled = validateChinesePost(
-  `${postHeader(release)}\n\n🔧 🛠️ 新增 \`maxEffortLevel\` 设置，可按模型限制努力等级上限`,
+  `${postHeader(release)}\n\n🔧 🛠️ 新增 maxEffortLevel 设置，可按模型限制努力等级上限`,
   release,
 );
 assert.ok(doubled.includes("🔧 新增"));
 assert.ok(!doubled.includes("🛠️"));
+
+// Radar drafts that still carry backticks are cleaned (warning only), never posted raw.
+const ticked = validateChinesePost(
+  `${postHeader(release)}\n\n🔧 新增 \`maxEffortLevel\` 设置，可按模型限制努力等级上限`,
+  release,
+);
+assert.ok(!ticked.includes("`"));
+assert.ok(ticked.includes("新增 maxEffortLevel 设置"));
 
 const blocks = parseVersionBlocks(`<p>Latest <span>v<!-- -->1.0.13</span></p>
 <h2>Grok Build <!-- -->1.0.13</h2><ul><li>Faster CLI downloads and smarter retries</li></ul>
@@ -84,4 +93,4 @@ assert.throws(
   /zero http/,
 );
 
-console.log("OK: root zero-link, official reply, single-emoji bullets, dig root reject, X length and Grok parse");
+console.log("OK: root zero-link, official reply, single-emoji bullets, backticks stripped, dig root reject, X length and Grok parse");

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +10,7 @@ import { isNotable, pickBullets, isEmptyChore, isClearlyValuable, selectRadarCan
 import { versionBumpKind } from "./versions.ts";
 import { draftChinesePost, validateChinesePost } from "./draft.ts";
 import { weightedXLength } from "./x-length.ts";
+import { postRootThenOfficialReply } from "./twitter.ts";
 import { fetchClaudeSince } from "./sources/claude.ts";
 import { fetchCodexSince } from "./sources/codex.ts";
 import { parseVersionBlocks } from "./sources/grok-build.ts";
@@ -362,14 +363,70 @@ describe("release content", () => {
     expect(() => isNotable("")).toThrow("Empty release notes");
   });
 
-  test("actual failure shapes are rejected; complete Chinese and code identifiers survive", () => {
+  test("actual failure shapes are rejected; complete Chinese and plain-text code identifiers survive", () => {
     const r = release();
     const wrap = (body: string) => `${postHeader(r)}\n\n${body}`;
     expect(() => validateChinesePost(wrap("🔧 新增 `maxEffortLevel` setting (top-level or per model under `modelSettings`): caps the effort level…"), r)).toThrow();
     expect(() => validateChinesePost(wrap("🔧 更新「详见发版说明」"), r)).toThrow();
     expect(() => validateChinesePost(wrap("🔧 " + "新增设置".repeat(100)), r)).toThrow("length limit");
-    expect(() => validateChinesePost(wrap("🔧 新增 `broken 设置，支持限制最大努力等级"), r)).toThrow("incomplete code");
-    expect(validateChinesePost(wrap("🔧 新增 `maxEffortLevel` 设置，可按模型限制努力等级上限"), r)).toContain("`maxEffortLevel`");
+    expect(validateChinesePost(wrap("🔧 新增 maxEffortLevel 设置，可按模型限制努力等级上限"), r)).toContain("maxEffortLevel 设置");
+    expect(validateChinesePost(wrap("⚙️ 新增 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC 环境变量"), r)).toContain("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC");
+  });
+
+  test("radar drafts with backticks or leading ** are cleaned with a warning, never rejected", () => {
+    const r = release();
+    const wrap = (body: string) => `${postHeader(r)}\n\n${body}`;
+    const warn = spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const cleaned = validateChinesePost(wrap("🔧 新增 `maxEffortLevel` 设置，可按模型限制努力等级上限\n💬 在 `/model` 菜单里可切换到 `claude-haiku-5-5`"), r);
+      expect(cleaned).not.toContain("`");
+      expect(cleaned).toContain("🔧 新增 maxEffortLevel 设置，可按模型限制努力等级上限");
+      expect(cleaned).toContain("💬 在 /model 菜单里可切换到 claude-haiku-5-5");
+      // An odd (unbalanced) backtick used to reject the draft; now it is just removed.
+      expect(validateChinesePost(wrap("🔧 新增 `broken 设置，支持限制最大努力等级"), r)).toContain("🔧 新增 broken 设置");
+      expect(warn).toHaveBeenCalled();
+      expect(String(warn.mock.calls[0]![0])).toContain("backtick");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test("LLM draft with backticks reaches X as plain text and the prompt forbids Markdown", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-not-a-secret";
+    let prompt = "";
+    globalThis.fetch = (async (_url: RequestInfo | URL, options?: RequestInit) => {
+      prompt = JSON.stringify(JSON.parse(String(options?.body)).messages);
+      return Response.json({ stop_reason: "end_turn", content: [{ type: "text", text: "🔧 新增 `maxEffortLevel` 设置，可按模型限制努力等级上限" }] });
+    }) as unknown as typeof fetch;
+    const warn = spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = await draftChinesePost(release());
+      expect(result).not.toContain("`");
+      expect(result).toContain("新增 maxEffortLevel 设置");
+      expect(prompt).toContain("禁止使用反引号");
+      expect(prompt).not.toContain("保留必要的反引号");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test("postRootThenOfficialReply strips backticks from root and reply before sending", async () => {
+    const sent: { text: string; replyTo?: string }[] = [];
+    const warn = spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const rootId = await postRootThenOfficialReply(
+        "🟣🚀 【Claude】Claude Code 2.0.0 发布\n\n**🔧 新增 `maxEffortLevel` 设置**",
+        "https://example.com/release",
+        async (text: string, replyTo?: string) => { sent.push({ text, replyTo }); return String(sent.length); },
+        () => {},
+      );
+      expect(rootId).toBe("1");
+      expect(sent[0]!.text).toBe("🟣🚀 【Claude】Claude Code 2.0.0 发布\n\n🔧 新增 maxEffortLevel 设置");
+      expect(sent[1]).toEqual({ text: "官方：https://example.com/release", replyTo: "1" });
+      expect(sent.every(s => !s.text.includes("`"))).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test("missing key and incomplete LLM responses never produce fallback posts", async () => {
