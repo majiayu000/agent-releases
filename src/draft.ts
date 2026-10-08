@@ -2,6 +2,7 @@ import type { Release } from "./sources/types.ts";
 import { postHeader } from "./sources/types.ts";
 import { draftChinesePostWithLlm } from "./draft-llm.ts";
 import { weightedXLength, X_WEIGHTED_LIMIT } from "./x-length.ts";
+import { cleanForX } from "./x-markdown.ts";
 
 /** Hollow / placeholder Chinese bullets that must never go live on X. */
 const HOLLOW_BULLET =
@@ -12,6 +13,12 @@ const EMOJI_RUN =
   /\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*/u;
 
 const HTTP_LINK = /https?:\/\//i;
+
+/**
+ * Identifier-like tokens (snake_case, kebab-case, paths, dotted names, camelCase)
+ * are code names, not untranslated English; exclude them from the Latin ratio.
+ */
+const CODE_LIKE_TOKEN = /[A-Za-z0-9]*[_/.\-][A-Za-z0-9_/.\-]*[A-Za-z0-9]|\b[a-z]+[A-Z][A-Za-z0-9]*\b/g;
 
 /**
  * Collapse stacked leading emojis (`🔧 🛠️ 新增` → `🔧 新增`) so live posts
@@ -46,12 +53,14 @@ export function officialReplyText(release: Release): string {
 
 /** Check the final root payload once, without truncating sentences or rewriting source facts. */
 export function validateChinesePost(text: string, release: Release): string {
-  const lines = text.trim().split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  // X does not render Markdown. Clean backticks / leading ** with a warning instead of rejecting.
+  const plain = cleanForX(text, `radar draft ${release.product} ${release.version}`);
+  const lines = plain.trim().split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const header = postHeader(release);
   if (lines[0] !== header) {
     throw new Error("Draft must have the exact product/version heading");
   }
-  if (HTTP_LINK.test(text)) {
+  if (HTTP_LINK.test(plain)) {
     throw new Error("Root draft must contain zero http(s) links; official URL goes in the reply");
   }
   const bullets = lines.slice(1).map(normalizeBulletEmoji);
@@ -63,9 +72,8 @@ export function validateChinesePost(text: string, release: Release): string {
     throw new Error("Draft requires one to three single-emoji bullet sentences");
   }
   for (const bullet of bullets) {
-    if ((bullet.match(/`/g)?.length ?? 0) % 2) throw new Error("Draft contains an incomplete code token");
     // Drop the leading emoji when scoring Chinese/Latin so the icon does not count as Latin.
-    const prose = bullet.replace(new RegExp(`^${EMOJI_RUN.source}\\s+`, "u"), "").replace(/`[^`]+`/g, "");
+    const prose = bullet.replace(new RegExp(`^${EMOJI_RUN.source}\\s+`, "u"), "").replace(CODE_LIKE_TOKEN, "");
     const chinese = prose.match(/\p{Script=Han}/gu)?.length ?? 0;
     const latin = prose.match(/[A-Za-z]/g)?.length ?? 0;
     if (chinese < 6 || latin > chinese * 2 || /…|\.\.\./.test(prose) || HOLLOW_BULLET.test(prose)) {
