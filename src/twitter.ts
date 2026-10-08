@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { TwitterApi, type TweetV2PostTweetResult } from "twitter-api-v2";
+import { cleanForX } from "./x-markdown.ts";
 
 const X_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_MEDIA = 4;
@@ -82,6 +83,8 @@ export async function postRootThenOfficialReply(
   send: typeof postTweet,
   persistRoot: (rootId: string) => void | Promise<void>,
 ): Promise<string> {
+  // Last line of defence: X does not render Markdown, so strip it from both tweets (warn, never reject).
+  rootText = cleanForX(rootText, "radar root");
   if (/https?:\/\//i.test(rootText)) {
     throw new Error(
       "Root tweet must contain zero http(s) links; official URL goes in the reply",
@@ -91,7 +94,7 @@ export async function postRootThenOfficialReply(
   if (!/^\d+$/.test(rootId)) throw new Error("X returned no valid tweet ID; outcome unknown");
   try {
     await persistRoot(rootId);
-    const replyId = await send(`官方：${officialUrl}`, rootId);
+    const replyId = await send(cleanForX(`官方：${officialUrl}`, "radar official reply"), rootId);
     if (!/^\d+$/.test(replyId)) throw new Error("X returned no valid reply tweet ID; outcome unknown");
   } catch (error) {
     throw new Error(`Root tweet ${rootId} was posted; reconcile the official reply before retry: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
