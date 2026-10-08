@@ -1,0 +1,20 @@
+🎁⚡ 【Codex】Day 3：所有付费账号再送一次 banked reset，Codex + Work 活跃用户破 4000 万
+
+要点：
+
+• Tibo 28 天挑战 Day 3，今天的主角是 ChatGPT 里的新版 GPT-6（Intelligent UI），Codex 模型不变
+• 同时庆祝新纪录：Codex 和 ChatGPT Work 合计 4000 万活跃用户
+• 给所有付费账号存入一次 banked reset；按重置追踪站的时间，约上海 10 月 8 日 15:00 前到位
+• 这是连续第二天发重置：Day 2 是社区投票选的重置，Day 1 是默认速度提升约 50%
+
+谁受影响：
+
+• 用 ChatGPT 付费账号跑 Codex 的人
+
+怎么验：
+
+• 上海 15:00 后在 Codex 里看 /status 或用量页，留意额度与重置时间变化
+
+👇 详情请看
+---
+官方：https://x.com/thsottiaux/status/2107913674593644711
