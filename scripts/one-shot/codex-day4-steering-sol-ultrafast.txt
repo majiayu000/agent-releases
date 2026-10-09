@@ -1,0 +1,23 @@
+⚡ 【Codex】Day 4：转向几乎即时，GPT-6.1 Sol Ultrafast 上线
+
+要点：
+
+• 🎯 Tibo 28 天挑战 Day 4：Steering 几乎即时响应，边跑边改方向，少白跑一段
+• 🚀 同步放出 GPT-6.1 Sol Ultrafast：DevDay 说「过几天」，现在 Codex 和 ChatGPT Work 可用
+• 💳 Ultrafast 范围：Pro 500 和符合条件的 Enterprise / Edu；其他自助套餐买了 credit 也用不了
+• 🧮 计费：先吃套餐含用量，按标准档 8 倍扣；用完走 credit，按 6 倍扣
+• 🏢 Enterprise 默认关闭，要工作区所有者给指定成员或整个工作区开权限
+• 🌍 Sol Ultrafast 支持美国和欧洲（EEA + 瑞士）推理驻留
+
+谁受影响：
+
+• 会中途改方向的 Codex / Work 用户；Ultrafast 主要是 Pro 500 与企业管理员
+
+怎么验：
+
+• 跑任务时中途发一条转向，看模型是否几乎马上改方向
+• 模型选择器里选 GPT-6.1 Sol，看有没有 Ultrafast
+
+👇 详情请看
+---
+官方：https://developers.openai.com/codex/changelog
