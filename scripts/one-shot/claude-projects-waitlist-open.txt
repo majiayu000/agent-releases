@@ -1,0 +1,20 @@
+🟣💻 【Claude】Claude Code Projects 候补名单清空：排队的 Pro / Max 全部放行
+
+要点：
+
+• ClaudeDevs 10/9 宣布，之前在 waitlist 上的 Pro / Max 用户现在都能用 Projects
+• Projects 是 9/17 开的公测：一个对话当协调者，拆成多个并行线程在云端跑
+• 入口在 claude.ai/code、桌面端 Code 标签和手机 App；写代码需 GitHub 仓库并装 Claude GitHub App
+• Team / Enterprise 仍未开放；10/9 之后才申请的没给时间表
+
+谁受影响：
+
+• 排过队的 Pro / Max 用户；Projects 和其它 Claude Code 会话共用额度，Pro 消耗会更快
+
+怎么验：
+
+• 打开 claude.ai/code 看侧栏有没有 Projects；没有就还在名单外
+
+👇 详情请看
+---
+来源（非官方，转述 ClaudeDevs 公告）：https://pasqualepillitteri.it/en/news/22116/claude-code-projects-lista-attesa-pro-max-en
