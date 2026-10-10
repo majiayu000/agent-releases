@@ -1,0 +1,21 @@
+🟣💻 【Claude】Claude Code Projects 能在你自己电脑上跑线程了（beta）
+
+要点：
+
+• 9 月重做的 Projects（一个对话当协调者，拆成多个并行线程）现在支持 Work locally
+• 需要本地数据库、模拟器或内网 API 的任务，可让那条线程跑在你电脑上，其它线程继续在云端
+• 本地线程走 Remote Control，用你机器上的文件、工具、MCP 和 Claude Code 设置
+• 仍是 Pro / Max 公测、逐步放量；Team / Enterprise 暂不可用
+
+谁受影响：
+
+• Pro / Max 的 Claude Code 云端会话用户；新项目默认 Opus 高努力档，用量消耗更快
+
+怎么验：
+
+• 本机 Claude Code 升到 v2.1.280 或以上，桌面端打开 Remote Control 或在目录里运行 claude remote-control
+• 在项目对话框 + 菜单选 Work locally，按卡片授权文件夹；侧栏没有 Projects 可加 waitlist
+
+👇 详情请看
+---
+官方：https://code.claude.com/docs/en/claude-projects
