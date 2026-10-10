@@ -1,0 +1,19 @@
+📊🖥️ 【Codex】Codex CLI 终端里直接画 Mermaid 图：流程图、时序图、状态图原生渲染
+
+要点：
+
+• Codex CLI 0.156.0（9 月 23 日）起，回复里的 Mermaid 代码块会在终端里直接渲染成字符图，不用再贴到网页看
+• flowchart / graph 支持 TD、LR、BT、RL 四个方向，判断节点、分支、合并、循环都能画
+• 还支持 sequenceDiagram 时序图和 stateDiagram 状态图，另有类图和 ER 图
+• 0.158.0 起支持带引号的标签和 & 写法；不支持的图会保留原文并说明原因
+• 0.159.0 继续扩展流程图语法：更多连线、标签和节点分组
+• 当前上限：单图 16 个节点、24 条边，输入 16KiB，超出就退回原文
+
+怎么验：
+
+• 升级到最新 Codex CLI，让它用 Mermaid 画一张流程图
+• Mermaid、公式、表格各有独立渲染开关
+
+👇 详情请看
+---
+官方：https://github.com/openai/codex/releases/tag/rust-v0.156.0
