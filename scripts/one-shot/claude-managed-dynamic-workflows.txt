@@ -1,11 +1,12 @@
-🧩🚀 【Claude】Managed Agents 上线托管动态工作流：一个 Agent 自己写编排，最多并行 1000 个子 Agent
+🧩🚀 【Claude】Managed Agents 上线托管动态工作流：一个 Agent 自己写编排，单次运行累计最多启动 1000 个子 Agent
 
 要点：
 
 • 10 月 9 日 Claude Platform 更新，Managed Agents 支持 dynamic workflows（beta）
 • 主 Agent 先写一个工作流程序，分阶段派给大量子 Agent，最后合并结果，整个过程在服务端后台跑
+• 当前单次运行最多同时工作 64 个线程，API 不保证这一并发值，后续可能调整
 • 适合一次要处理几百份文档、大规模代码审查这类拆得开的活
-• 打开方式：Agent 的 multiagent 字段设为 multiagent_20261001 并启用 workflows，配 managed-agents-2026-04-01 beta 头
+• 打开方式：Agent 的 multiagent.type 字段设为 multiagent_20261001，multiagent.workflows.type 设为 enabled，配 managed-agents-2026-04-01 beta 头
 • 进度通过会话事件流里的 workflow_run 事件跟踪
 • 这套能力 5 月先在 Claude Code 里上线，现在搬到了 API 托管侧
 
