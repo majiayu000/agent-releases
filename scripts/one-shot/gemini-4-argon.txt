@@ -1,0 +1,9 @@
+🧠 【Google】Gemini 4 Argon 上线：Ultra 用户 Antigravity 里直接用，API 首发价减半
+
+• Antigravity 桌面版和 CLI 都能选，Pro 可在 Gemini app 用
+• Google 称 Agent 提交代码多 35%，回滚少近三分之一
+• 每百万 token 输入 2/输出 10 美元到 11 月底，之后 4/20
+
+👇 详情请看
+---
+官方：https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-argon/
