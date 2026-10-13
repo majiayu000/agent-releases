@@ -1,0 +1,9 @@
+🎁 【Claude】做文档/PPT/设计省一半额度：建或改 Artifact 后，5 小时限额五折计
+
+• 之后 10 条消息按 50% 计入 5 小时限额，云端 Cowork 约前 45 分钟，周限额不变
+• Free/Pro/Max/Team 自动生效，不含 Enterprise、Claude Code 和 API
+• 10 月 15 日 23:59 PT（北京 16 日 14:59）截止，再建一个 Artifact 重新计
+
+👇 详情请看
+---
+官方：https://support.claude.com/en/articles/17274727-artifact-usage-promotion
