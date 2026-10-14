@@ -1,0 +1,9 @@
+🏗️ 【Claude】Anthropic 自研 Scion 替掉 Git：Claude 写码太快，日合并从 2500 涨到 3 万+
+
+• 7 人团队靠 Claude 5 个月建成并整仓迁移，顺手做了代码评审工具 Antique
+• 专为常在线 Agent 设计：提交合并都在服务端，CI 检出从几分钟降到几秒
+• 官方说普通团队不必换，打算和 GitHub、GitLab 一起把思路带回 Git
+
+👇 详情请看
+---
+官方：https://www.anthropic.com/engineering/redesigning-source-control
