@@ -1,0 +1,9 @@
+💬 【Claude】Claude in Slack 能进跨公司共享频道了，要授权时还会弹卡片问你
+
+• 支持 Slack Connect 频道，Owner 或 Claude Tag 管理员手动开启，默认关闭
+• 连接器操作需要授权时，线程里弹一张只有你看得见的 Allow once / Deny 卡片，不再直接拒绝
+• Slack 有语音转写时，Claude 能读懂你发的语音消息
+
+👇 详情请看
+---
+官方：https://github.com/anthropics/claude-code/releases/tag/v2.1.300
