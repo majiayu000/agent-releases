@@ -1,0 +1,9 @@
+⚡ 【Claude】Opus 5.5 快速模式取消等待名单：Claude Platform 上不用排队直接开，最高快 2.5 倍
+
+• 结束研究预览，还是同一个 Opus 5.5，速度最高约 2.5 倍
+• 价格 $8 / $40 每百万 token
+• Microsoft Foundry（Azure 托管）已可用，Google Cloud 即将上线
+
+👇 详情请看
+---
+官方：https://x.com/ClaudeDevs/status/2110825294655562048
