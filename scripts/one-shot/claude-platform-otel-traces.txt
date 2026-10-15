@@ -1,0 +1,9 @@
+🔭 【Claude】自己搭的 Agent 每一步都能接进你的监控看板，OTel 链路追踪公开测试
+
+• Claude Console 加一个 destination，Managed Agents 和 Messages API 的每轮、模型调用、工具调用都变成标准 trace
+• 带延迟、token 和 ID，遵循 OTel GenAI 规范，Grafana、Datadog、Langfuse、Sentry 等直接接
+• Claude SDK 自动导出，能和 Claude Code、Cowork 的 trace 放进同一个看板
+
+👇 详情请看
+---
+官方：https://claude.com/resources/articles/agent-observability-on-the-claude-platform
