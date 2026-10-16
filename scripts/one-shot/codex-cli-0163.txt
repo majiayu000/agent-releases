@@ -1,0 +1,9 @@
+🎯 【Codex】0.163.0：回答进行中就能改方向，只读工具还能并行跑
+
+• 回复中发跟进立刻转向；打断一轮也会停掉 Code Mode 里正在跑的工具
+• skill、memory、对话历史这类互不依赖的只读工具会并行执行
+• 符合条件的账号默认开 Daybreak；/config 可搜设置，/keymap 可配快捷键前缀（默认 Ctrl+X）
+
+👇 详情请看
+---
+官方：https://github.com/openai/codex/releases/tag/rust-v0.163.0
