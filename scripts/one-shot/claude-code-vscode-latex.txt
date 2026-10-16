@@ -1,0 +1,9 @@
+🧮 【Claude Code】VS Code 面板直接渲染数学公式，回答里的 LaTeX 不再是一串源码
+
+• 2.1.301 起，块级 $$ 和多行 \[ … \]，行内 $…$ 和 \(…\) 都能渲染
+• VS Code 和 JetBrains 用量上限横幅加了 Get more usage 入口（Pro、Max）
+• 长思考时聊天面板不再整段重解析，卡顿更少
+
+👇 详情请看
+---
+官方：https://github.com/anthropics/claude-code/releases/tag/v2.1.301
