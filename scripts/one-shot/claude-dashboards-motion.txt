@@ -1,0 +1,9 @@
+📊 【Claude】Claude 一句话把公司数据做成自动更新的看板，还能把报告做成 30 秒动画
+
+• Dashboards 付费版 beta：连 BigQuery、Snowflake 等，点数字看背后查询
+• Motion 在 Team 和 Enterprise beta：文字图表都能改，导出 MP4
+• Docs、Slides、Design 去掉 beta，Free 也能用
+
+👇 详情请看
+---
+官方：https://claude.com/blog/dashboards-and-motion
