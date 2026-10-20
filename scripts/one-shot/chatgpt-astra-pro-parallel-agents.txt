@@ -1,0 +1,9 @@
+🤖 【ChatGPT】ChatGPT Pro 的 GPT-6 Astra Pro 能让多个 agent 并行拆一个任务，回复也更快了
+
+• 同一个任务拆成几块，几个 agent 同时干，每个的进度都能看到
+• 插件和工具用得更顺，跑完的子任务能单独点开审查
+• Pro 用户在 Chat 标签里就能用，之前社区截到的 subagents 现在官方确认了
+
+👇 详情请看
+---
+官方：https://x.com/OpenAI/status/2111192259073094035
