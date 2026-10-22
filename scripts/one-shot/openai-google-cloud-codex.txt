@@ -1,0 +1,9 @@
+☁️ 【Codex】Google Cloud 用户能直接买 OpenAI 模型和 Codex，还能抵扣 GCP 承诺消费
+
+• OpenAI 前沿模型和 Codex Agent 工作流进 Google Cloud 的 Model Garden，走 Google Cloud Marketplace 购买
+• 之后还会上 Google Antigravity 和 Gemini Agent，几周内正式可用，现在可申请
+• OpenAI 说 Microsoft 仍是主要云伙伴
+
+👇 详情请看
+---
+官方：https://openai.com/index/openai-models-google-cloud
