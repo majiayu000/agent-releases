@@ -1,0 +1,11 @@
+🔧 【Claude API】2023 年以来首个正式新版本 2026-10-21，Claude Code 一条命令帮你迁代码
+
+• Messages API 移除 temperature、top_p、top_k，旧参数请求要改
+• 新版 Anthropic SDK 和 ant CLI 默认用新版本，2023-06-01 暂不弃用
+• Claude Code 2.1.307 新增 /claude-api api-version，自动把代码迁到 2026-10-21
+
+👇 详情请看
+---
+官方：https://x.com/ClaudeDevs/status/2113013247209021918
+官方：https://platform.claude.com/docs/en/api/migration-2026-10-21
+官方：https://github.com/anthropics/claude-code/releases/tag/v2.1.307
