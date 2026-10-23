@@ -1,0 +1,9 @@
+🎯 【Codex】CLI 0.164.0：常用提示词存进 10 个 /presets 槽位，键盘一键调出
+
+• /presets 能存 10 个可复用的提示词或斜杠命令，用键盘菜单快速选
+• /model 和 /permissions 直接带参数，一行切模型、推理强度、速度和权限档
+• 支持 Kitty 或 Sixel 的终端，全屏记录里能直接预览看过和生成的图片
+
+👇 详情请看
+---
+官方：https://github.com/openai/codex/releases/tag/rust-v0.164.0
