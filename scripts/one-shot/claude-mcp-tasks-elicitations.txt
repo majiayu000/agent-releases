@@ -1,0 +1,9 @@
+🧩 【Claude Code】今天起 CLI 支持 MCP Tasks 和 Elicitations，插件能跑长任务、中途找你确认
+
+• Tasks：Claude 可把深度研究这类长任务交给插件，做完再回报
+• Elicitations：插件能在任务中途向你要输入，比如确认退款、补一个缺的信息
+• 今天先在 Claude Code CLI 可用，很快推到更多 Claude 产品
+
+👇 详情请看
+---
+官方：https://x.com/ClaudeDevs/status/2113698001889927608
