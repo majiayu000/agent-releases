@@ -1,0 +1,9 @@
+🤖 【Claude】Google Cloud 上能用完整 Claude Platform 了：Managed Agents、Skills、代码执行同日上线
+
+• Anthropic 托管版正式 GA，用 Google Cloud IAM 登录，账单走 Google Cloud，抵扣已有承诺消费
+• 新功能和 beta 与原生 Claude Platform 同一天到，Opus 5.5 fast mode 同步 GA，输出最高快 2.5 倍
+• Fable 5.1、Opus 5.5、Sonnet 5.5、Haiku 5.5 都能用，先开 US 和 Global 端点
+
+👇 详情请看
+---
+官方：https://claude.com/resources/articles/claude-models-on-google-cloud-anthropic-managed
