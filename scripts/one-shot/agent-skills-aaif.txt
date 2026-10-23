@@ -1,0 +1,9 @@
+🤖 【Claude】Agent Skills 标准捐给 Linux 基金会旗下 AAIF：你写的 skill 在 Claude、Codex、Cursor 里照常通用
+
+• 70+ 平台已接入（ChatGPT、Cursor、GitHub Copilot、VS Code），已发布 100 万个 skill，安装近 2.8 亿次
+• 已有 skill 照常可用、许可证不变，不加入 AAIF 也能用和贡献
+• Anthropic、OpenAI、Google、Microsoft 等工程师组成技术委员会，先做版本化发布和安全指南
+
+👇 详情请看
+---
+官方：https://www.anthropic.com/news/donating-agent-skills-to-the-agentic-ai-foundation
