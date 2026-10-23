@@ -1,0 +1,9 @@
+⚡ 【Codex】对话中途改推理强度不再让缓存失效，Codex CLI 也一起更新
+
+• Tibo 今天 07:12 发 Day 19：Codex 和 Work 里中途切换推理强度，缓存不再失效
+• dots 的通话接通快了很多
+• CLI 加了可复用提示词预设和企业 MCP 登录，修了长会话恢复失败，用量自 DevDay 涨 2 倍
+
+👇 详情请看
+---
+官方：https://x.com/thsottiaux/status/2113770573994299544
