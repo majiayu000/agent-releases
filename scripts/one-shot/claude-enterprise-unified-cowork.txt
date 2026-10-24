@@ -1,0 +1,9 @@
+☁️ 【Claude】企业版一个对话从聊天直接交给云端干活，Chat 和 Cowork 合并正式上线
+
+• 先按聊天回答，要跑代码或处理文件就转到云端，关电脑也继续跑，网页、桌面、手机都能接着看
+• 新增 Efficient 模式只用 Sonnet 和 Haiku 省用量，管理员可按角色限模型、设预算
+• 对话、项目、连接器、Skills、插件全部迁移，Pro 和 Max 9 月已先用上
+
+👇 详情请看
+---
+官方：https://claude.com/resources/articles/unified-claude-enterprise
