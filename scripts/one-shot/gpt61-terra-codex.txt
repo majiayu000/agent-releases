@@ -1,0 +1,9 @@
+🚀 【Codex】GPT-6.1 Terra 官宣，即将登陆 Codex 和 API，电脑操作更快更便宜
+
+• OpenAI 北京时间今天 02:06 发布，主打看懂屏幕、跨应用动手操作
+• Agents' Last Exam 上达到 Astra 级表现，完成任务快 3 倍多
+• 每 token 成本只要十分之一，适合大批量 Agent 工作流
+
+👇 详情请看
+---
+官方：https://x.com/OpenAIDevs/status/2114780986613682473
