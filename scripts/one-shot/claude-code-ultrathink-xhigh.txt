@@ -1,0 +1,9 @@
+🧠 【Claude Code】打 ultrathink 直接拉到 xhigh 推理强度，v2.1.311 起生效
+
+• 终端里打 ultrathink，这一轮按 xhigh 跑，支持 Opus 5.5、Sonnet 5.5、Haiku 5.5、Fable 5.1
+• Claude 干活途中再打一次，剩下这轮也会被提到 xhigh
+• 同版修复：普通上下文超过 200K 不再报要 1M 额度，会自动压缩继续跑
+
+👇 详情请看
+---
+官方：https://github.com/anthropics/claude-code/releases/tag/v2.1.311
