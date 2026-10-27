@@ -1,0 +1,10 @@
+✅ 【Codex】GPT-6.1 Terra 已经能在 Codex 里用了，Plus 起步就有
+
+• Plus、Pro、Business、Enterprise、Edu 都开放，ChatGPT Work 也能选
+• 桌面 App 和网页版在模型列表的 Advanced 里切到 GPT-6.1 Terra
+• Tibo 说用量是 GPT-6.1 Sol 的 2 倍，API 和订阅都算，写作和电脑操作也更强
+
+👇 详情请看
+---
+官方：https://developers.openai.com/codex/changelog
+官方：https://x.com/thsottiaux/status/2114800277677092936
