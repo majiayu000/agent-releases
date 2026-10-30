@@ -1,0 +1,10 @@
+🚨🔐 【Claude Code】Cursor 扩展市场出现恶意版 Claude Code 扩展 2.1.313
+
+• Cursor 官方通报：北京时间 10/29 17:27 到 10/30 04:35，其 VS Code 扩展市场上架了被篡改的 Anthropic.claude-code 2.1.313，不是 Anthropic 发布的，最多影响 5000 名用户
+• 恶意代码会收集主机信息，尝试写入攻击者 SSH 公钥、开反向 SSH 隧道并设开机自启；攻击服务器已下线
+• 这段时间在 Cursor 里装过或更新到 2.1.313 的：检查 authorized_keys 里有没有 svc-telemetry，用官方脚本清理自启项，并轮换凭据，只卸载扩展不够
+• Cursor 称其他扩展未被篡改，暂无证据显示其他版本受影响
+
+👇 详情请看
+---
+官方：https://cursor.com/blog/claude-code-extension-security-notice
