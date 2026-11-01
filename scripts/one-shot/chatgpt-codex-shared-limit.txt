@@ -1,0 +1,10 @@
+🔔💳 【Codex】12 月起 ChatGPT 和 Codex 共用一份额度，按 token 计算
+
+• OpenAI 帮助中心 10/31 更新：Plus、Pro、Business 从 12 月起，ChatGPT 和 Codex 共用同一份用量额度
+• 按 token 计算，模型越高级、任务越复杂，消耗越多；Instant 聊天不占额度
+• 设置里的用量页可看合并后的剩余额度和重置时间，用完可以等重置、升级套餐或购买 credits
+• 具体日期和各套餐额度官方还没公布
+
+👇
+---
+官方：https://help.openai.com/en/articles/20001625-understanding-chatgpt-and-codex-usage-limits
