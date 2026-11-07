@@ -1,0 +1,11 @@
+【Claude】Claude Code 云会话：自动配好依赖与密钥
+
+要点：
+
+• Pro / Max / Ultra 上，Claude 会自己摸清仓库需要的依赖、网络权限和 API key，并保存环境给下次用
+• API key 安全存放，会话里 Claude 看不到明文
+• 环境会留下来，下次开云会话少手工配 setup / 网络 / 密钥
+
+👇 详情请看
+---
+官方：https://x.com/ClaudeDevs/status/2118795192090386454
