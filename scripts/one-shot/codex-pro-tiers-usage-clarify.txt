@@ -1,0 +1,9 @@
+🟢 【Codex】Pro 各档额度澄清：没有 5 小时限额
+
+OpenAI Codex 负责人 Tibo 澄清：所有 Pro 档都没有 5 小时限额，相对 Plus 的用量分别为：
+
+• Pro 100 = 10 倍
+• Pro 200 = 20 倍
+• Pro 500 = 50 倍，并可用 ultrafast
+---
+官方：https://x.com/thsottiaux/status/2119296267545419987
