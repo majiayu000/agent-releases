@@ -1,0 +1,6 @@
+🟢 【Codex】OpenAI Developers 插件上线 Showcase，可领 API 额度
+
+OpenAIDevs 发布：插件新增 Showcase 页。符合条件的 ChatGPT Pro 和 Business 订阅，可在账单设置里领取 API credits，用来覆盖自家应用的 API 用量。
+
+---
+官方：https://x.com/OpenAIDevs/status/2118856544733532452
