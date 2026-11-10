@@ -1,0 +1,12 @@
+🟣🚀 【Claude】Claude Fable 5.2 发布，Claude Code 已可用
+
+Anthropic 发布 Claude Fable 5.2，Claude Code 和 Claude Platform 同步上线：
+
+• 输出速度最高比 Fable 5.1 快 30%
+• 价格降到每百万 token 输入 $8、输出 $40（原 $10 / $50）
+• 新增可选 fast mode，生成速度最高 2.5 倍，Claude Code 可用
+• Mythos 5.2 仅向通过验证的机构开放
+
+官方建议日常编码先用 Opus 5.5，难题再升到 Fable。
+---
+官方：https://www.anthropic.com/claude-fable-and-mythos-5-2
