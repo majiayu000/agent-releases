@@ -1,0 +1,5 @@
+🟣 【Claude】Claude Code 的 Projects 更新发布
+
+在 Project 里，Claude 会把任务分到多个并行线程。Anthropic 发布更新：协调者更主动，会在项目聊天里直接回答你的问题，并同步各线程的进展。
+
+官方：https://x.com/ClaudeDevs/status/2121375309287301360
