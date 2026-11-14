@@ -1,0 +1,19 @@
+【Claude】Claude Code 桌面端：用 Mods 自定义主题
+
+要点：
+
+• 桌面版 Claude Code 现在可以用 Mods 做自定义主题：改配色、加动态背景
+• 做法：直接告诉 Claude 想要的外观；也可先装官方 theme-examples 插件当起点
+• 依赖 Mods（插件内的 TypeScript 函数），仍走 `/plugin` 安装与分享
+
+谁受影响：
+
+• 用 Claude Code 桌面端、想个性化界面的个人与团队
+
+怎么验：
+
+• 升到支持 Mods 的版本；装 theme-examples 插件，或让 Claude 按描述生成主题
+
+👇 详情请看
+---
+官方：https://x.com/ClaudeDevs/status/2121392666244186327
