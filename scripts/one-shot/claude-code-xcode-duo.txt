@@ -1,0 +1,19 @@
+【Claude】Claude Code 接入 Xcode 与 iPhone Duo 模拟器
+
+要点：
+
+• 桌面版 Claude Code（macOS，Xcode 27.1 及以上）发布 iPhone Duo iOS 模拟器支持（公开测试）：App 可和对话并排运行，Claude 能折叠、展开设备来测试各种布局
+• 适配现有 App：Claude Code 可安装 Apple 的 App Resizability skill，扫描布局问题并给出修复建议，你批准的改动会在 Duo 模拟器上验证
+• 终端用户：Xcode 插件已进官方 Claude Code 插件市场，可构建、运行、测试 App，渲染 SwiftUI 预览，搜索开发者文档
+
+谁受影响：
+
+• 用 Claude Code 做 iOS / SwiftUI 开发的人
+
+怎么验：
+
+• 终端执行 `/plugin install xcode@claude-plugins-official`；桌面端确认 Xcode 版本
+
+👇 详情请看
+---
+官方：https://x.com/ClaudeDevs/status/2121439104419790958
