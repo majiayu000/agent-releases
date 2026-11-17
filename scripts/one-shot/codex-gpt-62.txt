@@ -1,0 +1,20 @@
+【Codex】GPT-6.2 Astra 与 Sol 上线 Codex
+
+要点：
+
+• GPT-6.2 Astra 和 Sol 已在 ChatGPT 与 Codex 面向 Plus、Pro、Enterprise、Edu 用户开放
+• 日常写代码官方建议从 Sol 起步：在 Cognition 的 FrontierCode 2.0（最高推理档）上，成绩与 Astra 相差不到半分，单任务 API 成本约为 Astra 的 1/5
+• 两个模型都支持 Fast 与 Ultrafast 模式；Ultrafast 现向 Pro 200 开放（先从 Sol 开始），API 与 Enterprise 的 Ultrafast 价格未来三个月减半，为标准价的 3 倍
+• API 模型名：gpt-6.2-astra、gpt-6.2-sol
+
+谁受影响：
+
+• 用 Codex CLI / App 的付费用户，以及用 API 跑 Agent 的开发者
+
+怎么验：
+
+• 在 Codex 的模型选择里切换到 gpt-6.2-sol 或 gpt-6.2-astra
+
+👇 详情请看
+---
+官方：https://x.com/OpenAI/status/2122750135608528984
