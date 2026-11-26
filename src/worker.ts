@@ -4,7 +4,7 @@ import { fetchLatestCodex, fetchCodexSince } from "./sources/codex.ts";
 import { fetchLatestCodexApp, fetchCodexAppSince } from "./sources/codex-app.ts";
 import { fetchLatestGrokBuild, fetchGrokBuildSince } from "./sources/grok-build.ts";
 import type { Product, Release } from "./sources/types.ts";
-import { selectRadarCandidate } from "./filter.ts";
+import { PATCH_COOLDOWN_HOURS, selectRadarCandidate } from "./filter.ts";
 import { draftChinesePost } from "./draft.ts";
 import { assertXCredentials, postTweet, postRootThenOfficialReply } from "./twitter.ts";
 import { DAILY_PUBLICATION_LIMIT } from "./limits.ts";
@@ -70,7 +70,12 @@ export async function runPublisher(db: PublicationDatabase, preview: boolean): P
       if (known === "pending") throw new Error(`Pending publication: ${source.product} ${release.version}`);
       if (known === "posted") posted.add(release.version);
     }
-    const { skip, candidate } = selectRadarCandidate(releases, previous, posted);
+    // Inside the cooldown, small patches are held and merged into a later post.
+    const lastPostedAt = await db.prepare("SELECT max(posted_at) AS t FROM publications WHERE product = ? AND status = 'posted'")
+      .bind(source.product).first<string | null>("t");
+    const holdPatches = lastPostedAt !== null &&
+      Date.now() - Date.parse(lastPostedAt) < PATCH_COOLDOWN_HOURS * 3_600_000;
+    const { skip, candidate } = selectRadarCandidate(releases, previous, posted, { holdPatches });
     for (const release of skip) cursor = release.version;
     if (candidate && remaining > 0) {
       plans.push({ product: source.product, previous, cursor, release: candidate, text: await draftChinesePost(candidate) });

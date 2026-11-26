@@ -291,7 +291,7 @@ for (const action of ["ABORT", "IGNORE"]) test(`SQLite member ${action} rolls ba
 
 test("SQLite rewind skips a thin older patch before a later posted release", async () => {
   claudeVersions = ["1.1.0", "1.0.1", "1.0.0"];
-  claudeNotes = "- Added tiny tweak\n- Fixed a crash in terminal session reconnect";
+  claudeNotes = "- Added /tweak command\n- Fixed a crash in terminal session reconnect";
   connection.query("INSERT INTO publications (product,version,status,text,tweet_id,reserved_at,day) VALUES ('claude','1.1.0','posted','history','111',?,?)")
     .run(new Date().toISOString(), new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date()));
   await runPublisher(db, false);
@@ -349,7 +349,7 @@ test("Codex App month-boundary builds publish a bundle and persist only the tip 
     ["codex-2026-09-29-app", "26.929"],
     ["codex-2026-09-28-app", "26.928"],
     ["codex-2026-09-27-app", "26.927"],
-  ].map(([id, build]) => `<li id="${id}" data-codex-topics="codex-app"><h3>Codex app ${build}</h3><article><p>Added tiny tweak</p></article></li>`).join("");
+  ].map(([id, build]) => `<li id="${id}" data-codex-topics="codex-app"><h3>Codex app ${build}</h3><article><p>Added /tweak command</p></article></li>`).join("");
   const otherFetch = globalThis.fetch;
   globalThis.fetch = (async (input, init) => String(input).includes("developers.openai.com")
     ? new Response(html) : otherFetch(input, init)) as typeof fetch;
@@ -380,7 +380,7 @@ test("first unseen Codex App new-year build uses the feed baseline and publishes
   const html = [
     [tip, "27.101"],
     [cursor, "26.1231"],
-  ].map(([id, build]) => `<li id="${id}" data-codex-topics="codex-app"><h3>Codex app ${build}</h3><article><p>Added tiny tweak</p></article></li>`).join("");
+  ].map(([id, build]) => `<li id="${id}" data-codex-topics="codex-app"><h3>Codex app ${build}</h3><article><p>Added /tweak command</p></article></li>`).join("");
   const otherFetch = globalThis.fetch;
   globalThis.fetch = (async (input, init) => String(input).includes("developers.openai.com")
     ? new Response(html) : otherFetch(input, init)) as typeof fetch;
@@ -400,4 +400,20 @@ test("first unseen Codex App new-year build uses the feed baseline and publishes
   expect(connection.query("SELECT version,status FROM publications").get()).toEqual({ version: tip, status: "posted" });
   await runPublisher(db, false);
   expect(sent).toBe(2);
+});
+
+test("a product inside its patch cooldown holds a small patch and keeps the cursor", async () => {
+  const recent = new Date(Date.now() - 3_600_000).toISOString();
+  connection.query("INSERT INTO publications VALUES ('claude','1.0.0','posted','old','111',?,?,?)")
+    .run(recent, recent.slice(0, 10), recent);
+  claudeNotes = "- Added `/tweak` command\n- Fixed a crash in terminal session reconnect";
+  claudeVersions = ["1.0.2", "1.0.1", "1.0.0"];
+  await runPublisher(db, false);
+  expect(sent).toBe(0);
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.0" });
+  const old = new Date(Date.now() - 49 * 3_600_000).toISOString();
+  connection.query("UPDATE publications SET posted_at=? WHERE product='claude'").run(old);
+  await runPublisher(db, false);
+  expect(sent).toBe(2);
+  expect(connection.query("SELECT version FROM cursors WHERE product='claude'").get()).toEqual({ version: "1.0.2" });
 });

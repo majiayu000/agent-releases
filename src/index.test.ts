@@ -172,7 +172,7 @@ describe("publication recovery", () => {
 
   test("file-ledger selection compares against the walked posted cursor", async () => {
     appendLedger({ ts: now.toISOString(), product: "claude", version: "1.1.0", tweetId: "123", dryRun: false });
-    const thin = { ...release("claude", "1.1.1"), notes: "- Added tiny tweak" };
+    const thin = { ...release("claude", "1.1.1"), notes: "- Added /tweak command" };
     const plan = await prepare(true, "walked", [source("claude", [release("claude", "1.1.0"), thin])], draft, now);
     expect(plan.posts).toEqual([]);
     expect(readState("claude")).toBe("1.1.1");
@@ -180,7 +180,7 @@ describe("publication recovery", () => {
 
   test("file-ledger rewind keeps a thin older patch before a later posted release", async () => {
     appendLedger({ ts: now.toISOString(), product: "claude", version: "1.1.0", tweetId: "123", dryRun: false });
-    const thin = { ...release("claude", "1.0.1"), notes: "- Added tiny tweak" };
+    const thin = { ...release("claude", "1.0.1"), notes: "- Added /tweak command" };
     const plan = await prepare(true, "older", [source("claude", [thin, release("claude", "1.1.0")])], draft, now);
     expect(plan.posts).toEqual([]);
     expect(readState("claude")).toBe("1.1.0");
@@ -562,7 +562,7 @@ describe("release content", () => {
 
 describe("radar coalesce / de-noise", () => {
   test("posted releases separate patch bundles without skipping an earlier valuable patch", () => {
-    const thin = (version: string) => ({ ...release("claude", version), notes: "- Added tiny tweak" });
+    const thin = (version: string) => ({ ...release("claude", version), notes: "- Added /tweak command" });
     const posted = new Set(["1.0.2"]);
     const separated = selectRadarCandidate([thin("1.0.1"), thin("1.0.2"), thin("1.0.3")], "1.0.0", posted);
     expect(separated.candidate).toBeNull();
@@ -673,7 +673,7 @@ describe("radar coalesce / de-noise", () => {
   test("consecutive patches coalesce; lone thin patch is skipped; major stays postable", () => {
     const thin = (version: string): Release => ({
       product: "claude", version, displayVersion: version, title: version,
-      notes: "- Added tiny tweak", url: "https://example.com/" + version,
+      notes: "- Added /tweak command", url: "https://example.com/" + version,
     });
     const rich = (version: string): Release => ({
       product: "claude", version, displayVersion: version, title: version,
@@ -708,7 +708,7 @@ describe("radar coalesce / de-noise", () => {
   test.each(["- Fixed a terminal crash", "- chore: bump dependencies"])(
     "qualifying patches survive a later non-postable release: %s",
     notes => {
-      const thin = (version: string): Release => ({ ...release("claude", version), notes: "- Added tiny tweak" });
+      const thin = (version: string): Release => ({ ...release("claude", version), notes: "- Added /tweak command" });
       const first = thin("1.0.1");
       const second = thin("1.0.2");
       const interrupt = { ...thin("1.0.3"), notes };
@@ -742,7 +742,7 @@ describe("radar coalesce / de-noise", () => {
   test("prepare leaves the interrupting fix for the run after publishing the patch bundle", async () => {
     const list = ["1.0.1", "1.0.2", "1.0.3"].map(version => ({
       ...release("claude", version),
-      notes: version === "1.0.3" ? "- Fixed a terminal crash" : "- Added tiny tweak",
+      notes: version === "1.0.3" ? "- Fixed a terminal crash" : "- Added /tweak command",
     }));
     const sources = [source("claude", list)];
     const plan = await prepare(true, "bundle", sources, draft, now);
@@ -761,7 +761,7 @@ describe("radar coalesce / de-noise", () => {
   test("interrupted bundle draft failure and malformed notes preserve the file cursor and ledger", async () => {
     const list = ["1.0.1", "1.0.2", "1.0.3"].map(version => ({
       ...release("claude", version),
-      notes: version === "1.0.3" ? "- Fixed a terminal crash" : "- Added tiny tweak",
+      notes: version === "1.0.3" ? "- Fixed a terminal crash" : "- Added /tweak command",
     }));
     await expect(prepare(true, "bundle", [source("claude", list)], async () => {
       throw new Error("draft failed");
@@ -779,7 +779,7 @@ describe("radar coalesce / de-noise", () => {
       const r = release("claude", version);
       r.notes = version === "1.0.3"
         ? "- Added support for custom commands and terminal sessions"
-        : "- Added tiny tweak";
+        : "- Added /tweak command";
       return r;
     });
     const plan = await prepare(true, "live", [source("claude", list)], draft, now);
@@ -794,7 +794,7 @@ describe("radar coalesce / de-noise", () => {
 
   test("prepare skips a lone thin patch without reserving", async () => {
     const r = release("claude", "1.0.1");
-    r.notes = "- Added tiny tweak";
+    r.notes = "- Added /tweak command";
     const plan = await prepare(true, "live", [source("claude", [r])], draft, now);
     expect(plan.posts).toEqual([]);
     expect(readState("claude")).toBe("1.0.1");

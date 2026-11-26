@@ -46,7 +46,7 @@ async function setup(t, { preview = false, failX = false, failReply = false, inv
           const versions = !codex && thinOlder ? ['1.1.0', '1.0.1', '1.0.0'] : !codex && patchBundle
             ? Array.from({ length: (patchBundle === true ? 3 : patchBundle) + 1 }, (_, i) => `1.0.${i}`).reverse()
             : ['1.0.1', '1.0.0'];
-          const releases = versions.map(version => ({ tag_name: `${codex ? 'rust-v' : 'v'}${version}`, html_url: `https://github.com/test/releases/${version}`, body: !codex && thinOlder ? '- Added tiny tweak\n- Fixed a crash in terminal session reconnect' : '- Added support for custom commands and terminal sessions', draft: false, prerelease: false }));
+          const releases = versions.map(version => ({ tag_name: `${codex ? 'rust-v' : 'v'}${version}`, html_url: `https://github.com/test/releases/${version}`, body: !codex && thinOlder ? '- Added /tweak command\n- Fixed a crash in terminal session reconnect' : '- Added support for custom commands and terminal sessions', draft: false, prerelease: false }));
           return Response.json(releases);
         }
         if (url.hostname === 'developers.openai.com' && url.pathname.includes('/codex/changelog')) {
@@ -55,7 +55,7 @@ async function setup(t, { preview = false, failX = false, failReply = false, inv
 <li id="codex-2026-01-01-app" data-codex-topics="codex-app"><div><time>2026-01-01</time><h3>Initial app shell 26.100</h3></div><article><h3>Desktop shell</h3><p>Added the Codex desktop shell for macOS and Windows.</p></article></li>
 </ul>`);
         }
-        if (url.hostname === 'x.ai') return new Response('<h2>Grok Build 1.0.1</h2><ul><li>Added support for custom commands</li></ul><h2>Grok Build 1.0.0</h2><ul><li>Added support for terminal sessions</li></ul>');
+        if (url.hostname === 'x.ai') return new Response('<h2>Grok Build 1.0.1</h2><ul><li>Introduced support for custom commands</li></ul><h2>Grok Build 1.0.0</h2><ul><li>Added support for terminal sessions</li></ul>');
         if (url.hostname === 'open.bigmodel.cn') {
           calls.drafts++;
           return Response.json({ stop_reason: failDraft ? 'max_tokens' : 'end_turn', content: [{ type: 'text', text: '🔧 新增自定义命令支持，方便使用终端会话' }] });
