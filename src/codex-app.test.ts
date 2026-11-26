@@ -12,7 +12,7 @@ import type { Release } from "./sources/types.ts";
 
 const fixture = readFileSync("tests/fixtures/codex-changelog-app-sample.html", "utf8");
 
-const appRelease = (version: string, displayVersion: string, notes = "- Added tiny tweak"): Release => ({
+const appRelease = (version: string, displayVersion: string, notes = "- Added /tweak command"): Release => ({
   product: "codex_app", version, displayVersion, title: "Codex app",
   notes, url: `https://developers.openai.com/codex/changelog#${version}`,
 });
