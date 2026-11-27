@@ -154,9 +154,8 @@ export type RadarOptions = {
  *   patches merge into one post once cooldown ends (or PATCH_HOLD_MAX releases pile up)
  */
 export function patchBufferState(buffer: Release[], options: RadarOptions = {}): PatchBufferState {
-  const worthy = buffer.filter(isPatchWorthy);
-  if (!worthy.length) return "skip";
-  if (worthy.some(r => hasHeadlineChange(r.notes))) return "post";
+  if (buffer.some(r => hasHeadlineChange(r.notes))) return "post";
+  if (!buffer.some(isPatchWorthy)) return "skip";
   if (options.holdPatches) return buffer.length >= PATCH_HOLD_MAX ? "post" : "hold";
   return buffer.length >= 2 || isClearlyValuable(buffer[0]!.notes) ? "post" : "skip";
 }
@@ -215,8 +214,8 @@ export function selectRadarCandidate(
   for (const release of releases) {
     if (posted.has(release.version)) {
       // A posted release separates patch bundles but still supplies the next
-      // release's predecessor. Do not advance past an earlier postable bundle.
-      if (patchBufferState(patchBuffer, options) === "post") break;
+      // release's predecessor. Keep an earlier buffer that is postable or still held.
+      if (patchBufferState(patchBuffer, options) !== "skip") break;
       absorbPatches();
       skip.push(release);
       prior = release.version;

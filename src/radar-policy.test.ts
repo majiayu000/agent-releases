@@ -109,6 +109,19 @@ describe("cooldown hold", () => {
     expect(selectRadarCandidate([first, second], "2.1.306").candidate).toEqual(coalescePatchReleases([first, second]));
   });
 
+  test.each(["claude", "codex"] as const)("a %s GA announcement posts without addition wording", product => {
+    const ga = r(product, "1.0.1", "- Plugins are now generally available");
+    expect(selectRadarCandidate([ga], "1.0.0", new Set(), hold)).toEqual({ skip: [], candidate: ga });
+  });
+
+  test("a posted release does not advance past an earlier held patch", () => {
+    const patch = r("claude", "1.0.1", "- Added support for custom commands and terminal sessions");
+    const posted = r("claude", "1.0.2", CLAUDE_COMMAND);
+    const seen = new Set([posted.version]);
+    expect(selectRadarCandidate([patch, posted], "1.0.0", seen, hold)).toEqual({ skip: [], candidate: null });
+    expect(selectRadarCandidate([patch, posted], "1.0.0", seen)).toEqual({ skip: [], candidate: patch });
+  });
+
   test("headline patches and long held runs post during cooldown", () => {
     const model = r("claude", "2.1.321", "- Added Claude Fable 5.2 (`claude-fable-5-2`), now the default Fable model");
     expect(selectRadarCandidate([model], "2.1.320", new Set(), hold).candidate).toEqual(model);
