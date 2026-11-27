@@ -101,9 +101,13 @@ const CONFIG_KNOB_LEAD = /^(?:[Aa]dd(?:ed|s)?\s+)?(?:the\s+|an?\s+)?(?:optional\
 /** Headline-grade news. Grok Build daily patches post only when one of these appears. */
 const HEADLINE = /\b(?:introduc(?:e|ed|es|ing)|generally available|now available|public beta|research preview|plugin marketplace)\b|^(?:new|add(?:ed|s)?)\s+(?:[\w.-]+\s+){0,3}models?\b|\bnow the default\b[^.;]{0,40}\bmodel\b|正式发布|公测/i;
 
+function isReaderFacing(prose: string): boolean {
+  return !ADMIN_ONLY.test(prose) && !AUTHOR_API.test(prose) && !CONFIG_KNOB_LEAD.test(prose);
+}
+
 export function isUserFacingBullet(bullet: string): boolean {
   const prose = featureProse(bullet);
-  return ADDITION.test(prose) && USER_SURFACE.test(prose) && !ADMIN_ONLY.test(prose) && !AUTHOR_API.test(prose) && !CONFIG_KNOB_LEAD.test(prose);
+  return ADDITION.test(prose) && USER_SURFACE.test(prose) && isReaderFacing(prose);
 }
 
 function featureBullets(notes: string): string[] {
@@ -121,7 +125,10 @@ export function hasUserFacingChange(notes: string): boolean {
 
 /** True when the notes carry headline-grade news (new model, GA, beta, marketplace). */
 export function hasHeadlineChange(notes: string): boolean {
-  return featureBullets(notes).some((bullet) => HEADLINE.test(featureProse(bullet)));
+  return featureBullets(notes).some((bullet) => {
+    const prose = featureProse(bullet);
+    return HEADLINE.test(prose) && isReaderFacing(prose);
+  });
 }
 
 /**
@@ -154,9 +161,12 @@ export type RadarOptions = {
  *   patches merge into one post once cooldown ends (or PATCH_HOLD_MAX releases pile up)
  */
 export function patchBufferState(buffer: Release[], options: RadarOptions = {}): PatchBufferState {
-  if (buffer.some(r => hasHeadlineChange(r.notes))) return "post";
-  if (!buffer.some(isPatchWorthy)) return "skip";
-  if (options.holdPatches) return buffer.length >= PATCH_HOLD_MAX ? "post" : "hold";
+  if (!buffer.length) return "skip";
+  if (buffer[0]!.product !== "codex_app") {
+    if (buffer.some(r => hasHeadlineChange(r.notes))) return "post";
+    if (!buffer.some(isPatchWorthy)) return "skip";
+    if (options.holdPatches) return buffer.length >= PATCH_HOLD_MAX ? "post" : "hold";
+  }
   return buffer.length >= 2 || isClearlyValuable(buffer[0]!.notes) ? "post" : "skip";
 }
 
@@ -212,6 +222,11 @@ export function selectRadarCandidate(
   };
 
   for (const release of releases) {
+    if (options.holdPatches && patchBuffer.length === PATCH_HOLD_MAX && patchBuffer[0]!.product !== "codex_app") {
+      // Flush at eight, or clear an entirely unworthy buffer before reading more releases.
+      if (patchBufferState(patchBuffer, options) === "post") break;
+      absorbPatches();
+    }
     if (posted.has(release.version)) {
       // A posted release separates patch bundles but still supplies the next
       // release's predecessor. Keep an earlier buffer that is postable or still held.
