@@ -98,7 +98,8 @@ const AUTHOR_API = /\bfor mods\b|\ba mod's\b|\bmods installed\b|\bhook events?\b
 const ADMIN_ONLY = /\b(?:gateway|OpenTelemetry|OTel|telemetry|managed settings|managed polic(?:y|ies)|organization policy|admins?|administrators?|enterprise|proxy|certificates?|SDK|spend limits?|IdP)\b/i;
 const CONFIG_KNOB_LEAD = /^(?:[Aa]dd(?:ed|s)?\s+)?(?:[Ss]upport\s+for\s+)?(?:the\s+|an?\s+)?(?:optional\s+)?`(?:[A-Z][A-Z0-9_]{4,}|[\w$]+(?:\.[\w$()]+)+)`/;
 /** Headline-grade news. Grok Build daily patches post only when one of these appears. */
-const HEADLINE = /\b(?:generally available|public beta|research preview|plugin marketplace)\b|^(?:new|add(?:ed|s)?(?:\s+support\s+for)?|introduc(?:e|ed|es|ing))\s+(?:[\w.-]+\s+){0,6}models?\b|\bnow the default\b[^.;]{0,40}\bmodel\b|正式发布|公测/i;
+const HEADLINE = /\b(?:generally available|public beta|research preview|plugin marketplace)\b|^new\s+(?:[\w.-]+\s+){0,6}models?\b|\bnow the default\b[^.;]{0,40}\bmodel\b|正式发布|公测/i;
+const MODEL_ADDITION = /^(?:add(?:ed|s)?(?:\s+support\s+for)?|introduc(?:e|ed|es|ing))\s+(?:(?:the|an?)\s+)?((?:[\w.-]+\s+){1,6})models?\b/i;
 
 function isReaderFacing(prose: string): boolean {
   return !ADMIN_ONLY.test(prose) && !AUTHOR_API.test(prose) && !CONFIG_KNOB_LEAD.test(prose);
@@ -124,7 +125,12 @@ export function hasUserFacingChange(notes: string): boolean {
 
 function isHeadlineBullet(bullet: string): boolean {
   const prose = featureProse(bullet);
-  return isReaderFacing(prose) && HEADLINE.test(prose.replaceAll("`", ""));
+  if (!isReaderFacing(prose)) return false;
+  const plain = prose.replaceAll("`", "");
+  const model = MODEL_ADDITION.exec(plain)?.[1]?.trim();
+  return HEADLINE.test(plain) || (!!model
+    && !/^(?:active|current|default|existing|selected)\b/i.test(model)
+    && (/\bnew\b|\d/i.test(model) || /^[A-Z][A-Za-z.-]*(?: [A-Z][A-Za-z.-]*)*$/.test(model)));
 }
 
 /** True when the notes carry headline-grade news (new model, GA, beta, marketplace). */
@@ -135,8 +141,13 @@ export function hasHeadlineChange(notes: string): boolean {
 /** Use the changes that make a patch eligible before applying the draft length limit. */
 export function pickDraftBullets(release: Release, max: number): string[] {
   if (release.product === "codex_app") return pickBullets(release.notes, max);
-  const qualifying = featureBullets(release.notes).filter((bullet) =>
-    isHeadlineBullet(bullet) || (release.product !== "grok_build" && isUserFacingBullet(bullet)));
+  const headlines: string[] = [];
+  const features: string[] = [];
+  for (const bullet of featureBullets(release.notes)) {
+    if (isHeadlineBullet(bullet)) headlines.push(bullet);
+    else if (release.product !== "grok_build" && isUserFacingBullet(bullet)) features.push(bullet);
+  }
+  const qualifying = [...headlines, ...features];
   return qualifying.length ? qualifying.slice(0, max) : pickBullets(release.notes, max);
 }
 
