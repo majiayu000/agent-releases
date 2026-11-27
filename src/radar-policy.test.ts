@@ -152,10 +152,13 @@ describe("cooldown hold", () => {
     const ordinary = r("grok_build", "1.0.1", "- Introduced support for custom commands");
     const model = r("grok_build", "1.0.2", "- Added support for the `grok-5` model in /model");
     const existing = r("grok_build", "1.0.1", "- Added current model to the status bar");
-    for (const patch of [ordinary, existing]) {
+    const picker = r("grok_build", "1.0.1", "- New model picker includes recently used models");
+    for (const patch of [ordinary, existing, picker]) {
       expect(selectRadarCandidate([patch], "1.0.0", new Set(), hold)).toEqual({ skip: [patch], candidate: null });
     }
     expect(selectRadarCandidate([model], "1.0.1", new Set(), hold)).toEqual({ skip: [], candidate: model });
+    expect(hasHeadlineChange("- New model available")).toBe(true);
+    expect(hasHeadlineChange("- Introduced the Nova model")).toBe(true);
     expect(isUserFacingBullet("Added support for `permissions.blockWritesOutsideWorkingDirectories`: Write refuses outside paths")).toBe(false);
   });
 

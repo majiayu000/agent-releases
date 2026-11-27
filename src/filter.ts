@@ -98,8 +98,9 @@ const AUTHOR_API = /\bfor mods\b|\ba mod's\b|\bmods installed\b|\bhook events?\b
 const ADMIN_ONLY = /\b(?:gateway|OpenTelemetry|OTel|telemetry|managed settings|managed polic(?:y|ies)|organization policy|admins?|administrators?|enterprise|proxy|certificates?|SDK|spend limits?|IdP)\b/i;
 const CONFIG_KNOB_LEAD = /^(?:[Aa]dd(?:ed|s)?\s+)?(?:[Ss]upport\s+for\s+)?(?:the\s+|an?\s+)?(?:optional\s+)?`(?:[A-Z][A-Z0-9_]{4,}|[\w$]+(?:\.[\w$()]+)+)`/;
 /** Headline-grade news. Grok Build daily patches post only when one of these appears. */
-const HEADLINE = /\b(?:generally available|public beta|research preview|plugin marketplace)\b|^new\s+(?:[\w.-]+\s+){0,6}models?\b|\bnow the default\b[^.;]{0,40}\bmodel\b|正式发布|公测/i;
-const MODEL_ADDITION = /^(?:add(?:ed|s)?(?:\s+support\s+for)?|introduc(?:e|ed|es|ing))\s+(?:(?:the|an?)\s+)?((?:[\w.-]+\s+){1,6})models?\b/i;
+const HEADLINE = /\b(?:generally available|public beta|research preview|plugin marketplace)\b|^new models?(?=$|[.,:!?]|\s+(?:available|is now)\b)|\bnow the default\b[^.;]{0,40}\bmodel\b|正式发布|公测/i;
+// "Model" must end the introduced noun phrase, not modify another noun such as "picker".
+const MODEL_ADDITION = /^(?:new|add(?:ed|s)?(?:\s+support\s+for)?|introduc(?:e|ed|es|ing))\s+(?:(?:the|an?)\s+)?((?:[\w.-]+\s+){1,6})models?\b(?=$|[.,:!?]|\s+(?:available|is|are|in|for|with|to)\b)/i;
 
 function isReaderFacing(prose: string): boolean {
   return !ADMIN_ONLY.test(prose) && !AUTHOR_API.test(prose) && !CONFIG_KNOB_LEAD.test(prose);
@@ -130,7 +131,7 @@ function isHeadlineBullet(bullet: string): boolean {
   const model = MODEL_ADDITION.exec(plain)?.[1]?.trim();
   return HEADLINE.test(plain) || (!!model
     && !/^(?:active|current|default|existing|selected)\b/i.test(model)
-    && (/\bnew\b|\d/i.test(model) || /^[A-Z][A-Za-z.-]*(?: [A-Z][A-Za-z.-]*)*$/.test(model)));
+    && (/^new$|\d/i.test(model) || /^[A-Z][A-Za-z.-]*(?: [A-Z][A-Za-z.-]*)*$/.test(model)));
 }
 
 /** True when the notes carry headline-grade news (new model, GA, beta, marketplace). */
