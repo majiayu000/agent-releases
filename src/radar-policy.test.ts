@@ -151,7 +151,10 @@ describe("cooldown hold", () => {
   test("headline changes need more than an introduction verb", () => {
     const ordinary = r("grok_build", "1.0.1", "- Introduced support for custom commands");
     const model = r("grok_build", "1.0.2", "- Added support for the `grok-5` model in /model");
-    expect(selectRadarCandidate([ordinary], "1.0.0", new Set(), hold)).toEqual({ skip: [ordinary], candidate: null });
+    const existing = r("grok_build", "1.0.1", "- Added current model to the status bar");
+    for (const patch of [ordinary, existing]) {
+      expect(selectRadarCandidate([patch], "1.0.0", new Set(), hold)).toEqual({ skip: [patch], candidate: null });
+    }
     expect(selectRadarCandidate([model], "1.0.1", new Set(), hold)).toEqual({ skip: [], candidate: model });
     expect(isUserFacingBullet("Added support for `permissions.blockWritesOutsideWorkingDirectories`: Write refuses outside paths")).toBe(false);
   });
@@ -169,6 +172,16 @@ describe("cooldown hold", () => {
     const run = [r("claude", "1.0.1", CLAUDE_PLUMBING), r("claude", "1.0.2", CLAUDE_COMMAND)];
     const { candidate } = selectRadarCandidate(run, "1.0.0");
     expect(pickDraftBullets(candidate!, 2)).toEqual([CLAUDE_COMMAND.split("\n")[0]!.slice(2)]);
+  });
+
+  test("drafting takes a headline before older routine features", () => {
+    const ga = "Plugins are now generally available";
+    const run = [
+      r("claude", "1.0.1", "- Added /one command for terminal navigation\n- Added /two command for terminal status"),
+      r("claude", "1.0.2", `- ${ga}`),
+    ];
+    const { candidate } = selectRadarCandidate(run, "1.0.0", new Set(), hold);
+    expect(pickDraftBullets(candidate!, 2)[0]).toBe(ga);
   });
 
   test("Codex App keeps its pre-cooldown rule for incremental builds", () => {
