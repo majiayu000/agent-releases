@@ -89,7 +89,7 @@ const USER_SURFACE = new RegExp([
   String.raw`(?:^|[\s\`(“"])\/[a-z][\w:-]*`, // slash command
   String.raw`\`(?:claude|codex|grok)\s+[a-z][\w-]*`, // CLI subcommand
   String.raw`(?:^|[\s\`])--[a-z][\w-]+`, // CLI flag
-  String.raw`\b(?:mode|command|shortcut|keybinding|plugin|marketplace|skill|subagent|model|panel|picker|theme)s?\b`,
+  String.raw`\b(?:mode|command|shortcut|keybinding|plugin|marketplace|skill|subagent|model|panel|picker|theme|(?:custom|MCP) tool)s?\b`,
   String.raw`\b(?:in|to) (?:the terminal|VS Code|JetBrains|Claude Desktop|the desktop app|fullscreen)\b`,
   "斜杠命令|命令|模式|插件|快捷键|模型",
 ].join("|"), "i");
