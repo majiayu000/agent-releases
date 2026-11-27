@@ -130,6 +130,30 @@ describe("cooldown hold", () => {
     expect(selectRadarCandidate(run, "2.1.399", new Set(), hold).candidate).toEqual(coalescePatchReleases(run));
   });
 
+  test.each([
+    "- Introduced OpenTelemetry support for enterprise admins",
+    "- Introduced a new event for mods",
+    "- Added `settings.mode`, now generally available",
+  ])("does not publish excluded content as a headline: %s", notes => {
+    const patch = r("claude", "1.0.1", notes);
+    expect(selectRadarCandidate([patch], "1.0.0", new Set(), hold)).toEqual({ skip: [patch], candidate: null });
+  });
+
+  test("one cooldown bundle contains at most eight patches", () => {
+    const run = Array.from({ length: PATCH_HOLD_MAX + 1 }, (_, i) =>
+      r("claude", `2.1.${400 + i}`, CLAUDE_COMMAND));
+    expect(selectRadarCandidate(run, "2.1.399", new Set(), hold)).toEqual({
+      skip: [],
+      candidate: coalescePatchReleases(run.slice(0, PATCH_HOLD_MAX)),
+    });
+  });
+
+  test("Codex App keeps its pre-cooldown rule for incremental builds", () => {
+    const note = r("codex_app", "app-26.909",
+      "- Added support for managing longer terminal sessions in the desktop app", "26.909");
+    expect(selectRadarCandidate([note], "26.908", new Set(), hold)).toEqual({ skip: [], candidate: note });
+  });
+
   test("non-worthy patches are still skipped during cooldown", () => {
     const run = ["2.1.316", "2.1.317"].map(v => r("claude", v, CLAUDE_PLUMBING));
     expect(selectRadarCandidate(run, "2.1.315", new Set(), hold)).toEqual({ skip: run, candidate: null });
