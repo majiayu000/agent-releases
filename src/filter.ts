@@ -89,7 +89,6 @@ const USER_SURFACE = new RegExp([
   String.raw`(?:^|[\s\`(“"])\/[a-z][\w:-]*`, // slash command
   String.raw`\`(?:claude|codex|grok)\s+[a-z][\w-]*`, // CLI subcommand
   String.raw`(?:^|[\s\`])--[a-z][\w-]+`, // CLI flag
-  String.raw`\bsupport for\b`,
   String.raw`\b(?:mode|command|shortcut|keybinding|plugin|marketplace|skill|subagent|model|panel|picker|theme)s?\b`,
   String.raw`\b(?:in|to) (?:the terminal|VS Code|JetBrains|Claude Desktop|the desktop app|fullscreen)\b`,
   "斜杠命令|命令|模式|插件|快捷键|模型",
@@ -97,9 +96,9 @@ const USER_SURFACE = new RegExp([
 /** Plugin/mod author APIs: useful to extension authors, not something most readers will try. */
 const AUTHOR_API = /\bfor mods\b|\ba mod's\b|\bmods installed\b|\bhook events?\b|\bevent of plugin hooks\b/i;
 const ADMIN_ONLY = /\b(?:gateway|OpenTelemetry|OTel|telemetry|managed settings|managed polic(?:y|ies)|organization policy|admins?|administrators?|enterprise|proxy|certificates?|SDK|spend limits?|IdP)\b/i;
-const CONFIG_KNOB_LEAD = /^(?:[Aa]dd(?:ed|s)?\s+)?(?:the\s+|an?\s+)?(?:optional\s+)?`(?:[A-Z][A-Z0-9_]{4,}|[\w$]+(?:\.[\w$()]+)+)`/;
+const CONFIG_KNOB_LEAD = /^(?:[Aa]dd(?:ed|s)?\s+)?(?:[Ss]upport\s+for\s+)?(?:the\s+|an?\s+)?(?:optional\s+)?`(?:[A-Z][A-Z0-9_]{4,}|[\w$]+(?:\.[\w$()]+)+)`/;
 /** Headline-grade news. Grok Build daily patches post only when one of these appears. */
-const HEADLINE = /\b(?:introduc(?:e|ed|es|ing)|generally available|now available|public beta|research preview|plugin marketplace)\b|^(?:new|add(?:ed|s)?)\s+(?:[\w.-]+\s+){0,3}models?\b|\bnow the default\b[^.;]{0,40}\bmodel\b|正式发布|公测/i;
+const HEADLINE = /\b(?:generally available|public beta|research preview|plugin marketplace)\b|^(?:new|add(?:ed|s)?(?:\s+support\s+for)?|introduc(?:e|ed|es|ing))\s+(?:[\w.-]+\s+){0,6}models?\b|\bnow the default\b[^.;]{0,40}\bmodel\b|正式发布|公测/i;
 
 function isReaderFacing(prose: string): boolean {
   return !ADMIN_ONLY.test(prose) && !AUTHOR_API.test(prose) && !CONFIG_KNOB_LEAD.test(prose);
@@ -123,12 +122,22 @@ export function hasUserFacingChange(notes: string): boolean {
   return featureBullets(notes).some(isUserFacingBullet);
 }
 
+function isHeadlineBullet(bullet: string): boolean {
+  const prose = featureProse(bullet);
+  return isReaderFacing(prose) && HEADLINE.test(prose.replaceAll("`", ""));
+}
+
 /** True when the notes carry headline-grade news (new model, GA, beta, marketplace). */
 export function hasHeadlineChange(notes: string): boolean {
-  return featureBullets(notes).some((bullet) => {
-    const prose = featureProse(bullet);
-    return HEADLINE.test(prose) && isReaderFacing(prose);
-  });
+  return featureBullets(notes).some(isHeadlineBullet);
+}
+
+/** Use the changes that make a patch eligible before applying the draft length limit. */
+export function pickDraftBullets(release: Release, max: number): string[] {
+  if (release.product === "codex_app") return pickBullets(release.notes, max);
+  const qualifying = featureBullets(release.notes).filter((bullet) =>
+    isHeadlineBullet(bullet) || (release.product !== "grok_build" && isUserFacingBullet(bullet)));
+  return qualifying.length ? qualifying.slice(0, max) : pickBullets(release.notes, max);
 }
 
 /**
@@ -222,11 +231,6 @@ export function selectRadarCandidate(
   };
 
   for (const release of releases) {
-    if (options.holdPatches && patchBuffer.length === PATCH_HOLD_MAX && patchBuffer[0]!.product !== "codex_app") {
-      // Flush at eight, or clear an entirely unworthy buffer before reading more releases.
-      if (patchBufferState(patchBuffer, options) === "post") break;
-      absorbPatches();
-    }
     if (posted.has(release.version)) {
       // A posted release separates patch bundles but still supplies the next
       // release's predecessor. Keep an earlier buffer that is postable or still held.
@@ -263,6 +267,11 @@ export function selectRadarCandidate(
 
     // Distinct same-day App ids (or equal builds) are not major/minor wins.
     if (bump === "patch" || (release.product === "codex_app" && bump === "unknown")) {
+      if (options.holdPatches && patchBuffer.length === PATCH_HOLD_MAX && release.product !== "codex_app") {
+        // A ninth patch starts another batch; a major/minor still takes precedence below.
+        if (patchBufferState(patchBuffer, options) === "post") break;
+        absorbPatches();
+      }
       patchBuffer.push(release);
       continue;
     }

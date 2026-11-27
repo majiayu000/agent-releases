@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   coalescePatchReleases, hasHeadlineChange, hasUserFacingChange, isUserFacingBullet,
-  patchBufferState, PATCH_HOLD_MAX, selectRadarCandidate,
+  patchBufferState, PATCH_HOLD_MAX, pickDraftBullets, selectRadarCandidate,
 } from "./filter.ts";
 import type { Product, Release } from "./sources/types.ts";
 
@@ -146,6 +146,29 @@ describe("cooldown hold", () => {
       skip: [],
       candidate: coalescePatchReleases(run.slice(0, PATCH_HOLD_MAX)),
     });
+  });
+
+  test("headline changes need more than an introduction verb", () => {
+    const ordinary = r("grok_build", "1.0.1", "- Introduced support for custom commands");
+    const model = r("grok_build", "1.0.2", "- Added support for the `grok-5` model in /model");
+    expect(selectRadarCandidate([ordinary], "1.0.0", new Set(), hold)).toEqual({ skip: [ordinary], candidate: null });
+    expect(selectRadarCandidate([model], "1.0.1", new Set(), hold)).toEqual({ skip: [], candidate: model });
+    expect(isUserFacingBullet("Added support for `permissions.blockWritesOutsideWorkingDirectories`: Write refuses outside paths")).toBe(false);
+  });
+
+  test("a minor release wins immediately after eight patches", () => {
+    const patches = Array.from({ length: PATCH_HOLD_MAX }, (_, i) =>
+      r("codex", `rust-v0.170.${i + 1}`, CLAUDE_COMMAND));
+    const minor = r("codex", "rust-v0.171.0", CLAUDE_COMMAND);
+    expect(selectRadarCandidate([...patches, minor], "rust-v0.170.0", new Set(), hold)).toEqual({
+      skip: patches, candidate: minor,
+    });
+  });
+
+  test("drafting a bundle starts with the qualifying change", () => {
+    const run = [r("claude", "1.0.1", CLAUDE_PLUMBING), r("claude", "1.0.2", CLAUDE_COMMAND)];
+    const { candidate } = selectRadarCandidate(run, "1.0.0");
+    expect(pickDraftBullets(candidate!, 2)).toEqual([CLAUDE_COMMAND.split("\n")[0]!.slice(2)]);
   });
 
   test("Codex App keeps its pre-cooldown rule for incremental builds", () => {

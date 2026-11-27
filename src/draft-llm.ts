@@ -3,7 +3,7 @@
  * (Zhipu BigModel gateway by default).
  */
 import type { Release } from "./sources/types.ts";
-import { pickBullets } from "./filter.ts";
+import { pickDraftBullets } from "./filter.ts";
 
 const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/anthropic";
 /** Default BigModel draft model (override with DRAFT_MODEL). */
@@ -39,7 +39,7 @@ function baseUrl(): string {
 }
 
 function buildPrompt(release: Release): string {
-  const bullets = pickBullets(release.notes, 2);
+  const bullets = pickDraftBullets(release, 2);
   if (!bullets.length) throw new Error("No feature bullets available for Chinese drafting");
   return `把下面的版本更新概括成 ${bullets.length} 条简短的简体中文要点。
 硬性格式：每行必须以「恰好一个语义表情 + 空格 + 中文」开头（例如 🔧 / 🌿 / 💬 / ⚙️），禁止叠两个表情如「🔧 🛠️」，禁止用「•」「-」「*」当行首。
